@@ -1,0 +1,57 @@
+<XMLBundle>
+<XMLTransmission CtrlNumber="20260309102240" Receiver="E2ASOS" Sender="DAVIESTN" Timestamp="20260313 102239"> <!-- Timestamp, CtrlNumber with current Timestamp  -->
+<XMLGroup CtrlNumber="20260309102240" GroupType="BP" IncludedMessages="2"><!-- CtrlNumber with current Timestamp -->
+<XMLTransaction CtrlNumber="45870000001141" TransactionType="BPM-856"><!-- CtrlNumber with current Timestamp -->
+<BpMessage MessageType="856" PurposeCd="04">
+<Mode>30</Mode>
+<Reference RefTypeCd="SC" SourceRefTypeCd="128">TR</Reference>
+<Reference RefTypeCd="SHTYPE" SourceRefTypeCd="128">ASN</Reference>
+<Reference RefTypeCd="TF" SourceRefTypeCd="128">CFS/CY</Reference>
+<Reference RefTypeCd="CSI" SourceRefTypeCd="128">AEE000002108</Reference><!-- Change last four digit everytime, go it sequence & unique for each run -->
+<Reference RefTypeCd="EXCP" SourceRefTypeCd="128">Compliant</Reference>
+<Reference RefTypeCd="NONCP" SourceRefTypeCd="128">Compliant</Reference>
+<Reference RefTypeCd="LD" SourceRefTypeCd="128">LTL</Reference>
+<Reference RefTypeCd="CATN" SourceRefTypeCd="128">ATJEE000002108</Reference><!-- Match the last four digits of CSI -->
+<Date DateTypeCd="DO" TimeZone="">20260420</Date> <!-- CAN BE TODAY + 8 DAYS  -->
+<Date DateTypeCd="MAN" TimeZone="">20260425</Date>v<!-- CAN BE TODAY + 9 DAYS  -->
+<TradePartner RoleCd="CA">
+<TradePartnerName>Davies Turner</TradePartnerName>
+<TradePartnerID Qualifier="93">DT</TradePartnerID>
+</TradePartner>
+<TradePartner RoleCd="FD">
+<TradePartnerName>FC01 Asos Barnsley</TradePartnerName>
+<TradePartnerID Qualifier="93">FC01</TradePartnerID>
+<TradePartnerAddress>
+<City>Grimethorpe</City>
+<CountryCd>GB</CountryCd>
+</TradePartnerAddress>
+</TradePartner>
+<TradePartner RoleCd="FS">
+<TradePartnerName>FC01 Asos Barnsley</TradePartnerName>
+<TradePartnerID Qualifier="93">FC01</TradePartnerID>
+<TradePartnerAddress>
+<City>Grimethorpe</City>
+<CountryCd>GB</CountryCd>
+</TradePartnerAddress>
+</TradePartner>
+<Document DocType="SHIP" Key="45870000001141"> <!-- Get value from user input ASN -->
+<DocumentID>45870000001141</DocumentID> <!-- Copy the value from user input ASN -->
+<Measure Qualifier="WGT" SourceQualifier="738" SourceUOMCd="355" UOMCd="KG">2</Measure>
+<Order Key="500034209905" OrderType="PO"> <!-- Get value from user input PO -->
+<OrderID>500034209905</OrderID> <!-- Copy the value from user input PO -->
+<LineItem Key="123478460"> <!-- Get value from user input LineItem -->
+<Attribute AttributeTypeCd="SK">123478460</Attribute> <!-- Copy the value from user input LineItem -->
+<Measure EqOrFpKey="AH7972AE / A2853BE" Qualifier="SQ" SourceUOMCd="355" UOMCd="UN">1</Measure> <!-- Make it sequence & unique everytime , start as AH1001AE / A1001BE -->
+</LineItem>
+</Order>
+</Document>
+<Equipment Key="AH7972AE / A2853BE"> <!-- copy the value from EqOrFpKey-->
+<EquipmentDescCd>TL</EquipmentDescCd>
+<Reference RefTypeCd="SN"/>
+</Equipment>
+<Relationship DocKey="45870000001141" EqKey="AH7972AE / A2853BE"/> <!-- copy the value from DocumentID and EqOrFpKey -->
+</BpMessage>
+</XMLTransaction>
+</XMLGroup>
+</XMLTransmission>
+</XMLBundle>

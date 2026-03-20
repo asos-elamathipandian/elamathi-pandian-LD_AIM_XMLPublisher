@@ -1,0 +1,32 @@
+<XMLBundle>
+<XMLTransmission CtrlNumber="20260130110522" Receiver="E2ASOS" Sender="DAVIESTN" Timestamp="20260130 1106"><!-- Timestamp, CtrlNumber with current Timestamp  -->
+<XMLGroup CtrlNumber="20260130110522" GroupType="BP" IncludedMessages="1"> <!-- CtrlNumber with current Timestamp -->
+<XMLTransaction CtrlNumber="20260130110522" TransactionType="BPM-VBKCON"> <!-- CtrlNumber with current Timestamp -->
+<BpMessage MessageType="VBKCON" PurposeCd="00">
+<TradePartner RoleCd="CA">
+<TradePartnerName>Davies Turner</TradePartnerName>
+<TradePartnerID>3</TradePartnerID>
+</TradePartner>
+<TradePartner RoleCd="SU">
+<TradePartnerName>Difuzed - FOB</TradePartnerName>
+<TradePartnerID Qualifier="93">2002900003</TradePartnerID>
+</TradePartner>
+<Status>
+<Date DateTypeCd="135" TimeZone="UT">20260130 1106</Date> <!-- CAN BE TODAY + 5 DAYS  -->
+<Location LocTypeCd="L">
+<LocationID Qualifier="UN">POROP</LocationID>
+</Location>
+</Status>
+<Status>
+<Date DateTypeCd="080" TimeZone="UT">20260204 0000</Date> <!-- CAN BE TODAY + 6 DAYS  -->
+</Status>
+<Document DocType="BOOK" Key="BOOK_5290"> <!-- DocType can be BOOK, value BOOK_copy numbers from ABV -->
+<Reference RefTypeCd="ABV" SourceRefTypeCd="128">5290</Reference> <!-- Start from 6100, go in sequence (+1) everytime so unique  -->
+<Reference RefTypeCd="ACE" SourceRefTypeCd="128">VB-0000001975</Reference> <!-- REPLACE WITH PROVIDED ACE  -->
+<Reference RefTypeCd="V0" SourceRefTypeCd="128">1.0</Reference>
+</Document>
+</BpMessage>
+</XMLTransaction>
+</XMLGroup>
+</XMLTransmission>
+</XMLBundle>

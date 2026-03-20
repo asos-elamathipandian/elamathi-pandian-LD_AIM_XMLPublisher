@@ -1,0 +1,20 @@
+<XMLBundle>
+<XMLTransmission CtrlNumber="20260311160016" Receiver="E2ASOS" Sender="DAVIESTN" Timestamp="20260311 160016"> <!-- Timestamp, CtrlNumber with current Timestamp  -->
+<XMLGroup CtrlNumber="20260311160016" GroupType="BP" IncludedMessages="1"><!-- CtrlNumber with current Timestamp  -->
+<XMLTransaction CtrlNumber="45870000001141" TransactionType="BPM-BST">  <!-- Get value from user input ASN -->
+<BpMessage MessageType="BST">
+<Mode>30</Mode>
+<Status>
+<Date DateTypeCd="HNDOVR" TimeZone="UTC">20260325 104015</Date> <!-- CAN BE TODAY + 7 DAYS -->
+<Location LocTypeCd="EA">
+<LocationID Qualifier="UN">TRIST</LocationID>
+</Location>
+</Status>
+<Document DocType="SHIP" Key="45870000001141"> <!-- Get value from user input ASN -->
+<DocumentID>45870000001141</DocumentID> <!-- Copy the value from user input ASN -->
+</Document>
+</BpMessage>
+</XMLTransaction>
+</XMLGroup>
+</XMLTransmission>
+</XMLBundle>
