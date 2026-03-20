@@ -1,6 +1,6 @@
-# XML Generator Uploader
+# XML Generator & Uploader
 
-This project generates three XML message types and can optionally upload the generated files to SFTP:
+This project generates the below XML files which flows from the Carriers to E2Open system and can upload the generated files to SFTP for processing in E2Open:
 
 - VBKCON
 - Carrier Shipment
@@ -151,7 +151,6 @@ npm run start:mcp
 Available tools:
 
 - `generate_vbkcon`
-  - `abv` (required)
   - `ace` (required)
   - `uploadToSftp` (optional, default `true`)
 - `generate_carrier_shipment`
