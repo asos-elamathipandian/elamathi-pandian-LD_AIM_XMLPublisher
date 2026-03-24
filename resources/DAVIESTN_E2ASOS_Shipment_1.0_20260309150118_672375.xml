@@ -46,6 +46,7 @@
 </Order>
 </Document>
 <Equipment Key="AH7972AE / A2853BE"> <!-- copy the value from EqOrFpKey-->
+<EquipmentNumber>AH7972AE / A2853BE</EquipmentNumber><!-- copy the value from EqOrFpKey-->
 <EquipmentDescCd>TL</EquipmentDescCd>
 <Reference RefTypeCd="SN"/>
 </Equipment>
