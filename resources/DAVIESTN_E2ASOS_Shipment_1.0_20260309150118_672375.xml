@@ -41,7 +41,7 @@
 <OrderID>500034209905</OrderID> <!-- Copy the value from user input PO -->
 <LineItem Key="123478460"> <!-- Get value from user input LineItem -->
 <Attribute AttributeTypeCd="SK">123478460</Attribute> <!-- Copy the value from user input LineItem -->
-<Measure EqOrFpKey="AH7972AE / A2853BE" Qualifier="SQ" SourceUOMCd="355" UOMCd="UN">1</Measure> <!-- Make it sequence & unique everytime , start as AH1001AE / A1001BE -->
+<Measure EqOrFpKey="AH7972AE / A2853BE" Qualifier="SQ" SourceUOMCd="355" UOMCd="UN">1</Measure> <!-- Make it sequence & unique everytime , start as AH1001AE / A1001BE  , get the SKU qty and add as value replacing 1 here-->
 </LineItem>
 </Order>
 </Document>

@@ -23,7 +23,7 @@
 <Document DocType="BOOK" Key="BOOK_5290"> <!-- DocType can be BOOK, value BOOK_copy numbers from ABV -->
 <Reference RefTypeCd="ABV" SourceRefTypeCd="128">5290</Reference> <!-- Start from 6100, go in sequence (+1) everytime so unique  -->
 <Reference RefTypeCd="ACE" SourceRefTypeCd="128">VB-0000001975</Reference> <!-- REPLACE WITH PROVIDED ACE  -->
-<Reference RefTypeCd="V0" SourceRefTypeCd="128">1.0</Reference>
+<Reference RefTypeCd="V0" SourceRefTypeCd="128">1.0</Reference> 
 </Document>
 </BpMessage>
 </XMLTransaction>

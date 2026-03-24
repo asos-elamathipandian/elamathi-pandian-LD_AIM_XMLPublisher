@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<XMLBundle xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+		<XMLTransmission CtrlNumber="QhxQLRDhkCwX30YJn7adg" Receiver="E2ASOS" Sender="ASOS" Timestamp="20260316 155518" TimeZone="UT"> <!-- keep the ctrl number value to unique following same pattern and timestamp can be current system time -->
+				<XMLGroup CtrlNumber="QhxQLRDhkCwX30YJn7adg" GroupType="BP" IncludedMessages="1"> <!-- Get value from above ctrlnumber -->
+						<XMLTransaction CtrlNumber="51470000001193" TransactionType="BPM-856">  <!-- Get value from user input ASN and have it against this ctrlnumber -->
+								<BpMessage MessageType="856" PurposeCd="20">
+										<Mode>30</Mode>
+										<Reference RefTypeCd="SHTYPE" SourceRefTypeCd="128">ASN</Reference>
+										<Reference RefTypeCd="SACHL" SourceRefTypeCd="128">R</Reference>
+										<Date TimeZone="UT" DateTypeCd="PDX_RCVD">20260316 085724</Date> <!-- Date can be current system time + 1 min -->
+										<TradePartner RoleCd="FD">
+												<TradePartnerName>Barnsley</TradePartnerName>
+												<TradePartnerID Qualifier="93">FC01</TradePartnerID>
+										</TradePartner>
+										<Document DocType="SHIP" Key="51470000001193"> <!-- get the value from input  ASN -->
+												<DocumentID>51470000001193</DocumentID>  <!-- Copy the value from input  ASN -->
+												<Order Key="500034214741" OrderType="PO"> <!-- get the value from input  PO -->
+														<OrderID>500034214741</OrderID> <!-- copy the value from input  PO -->
+														<LineItem Key="140260042"> <!-- get the value from input  SKU -->
+																<Attribute AttributeTypeCd="SK">140260042</Attribute> <!-- copy the value from input  ASN -->
+																<Measure Qualifier="RCV" SourceUOMCd="355" UOMCd="UN">200.000000</Measure> <!-- get the value from input  SKU qty  -->
+																<Reference RefTypeCd="BAF" SourceRefTypeCd="128">ASOS_51470000001193_GB01</Reference> <!-- replace * with input ASN - ASOS_*_GB01 -->
+														</LineItem>
+												</Order>
+										</Document>
+								</BpMessage>
+						</XMLTransaction>
+				</XMLGroup>
+		</XMLTransmission>
+</XMLBundle>

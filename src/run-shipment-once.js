@@ -13,19 +13,20 @@ loadEnvironment();
 async function main() {
   const args = process.argv.slice(2).filter(a => a !== "--no-upload");
   const noUpload = process.argv.includes("--no-upload");
-  let [asn, po, sku] = args;
+  let [asn, po, sku, skuQty] = args;
 
   if (!asn || !po || !sku) {
     const inputs = loadInputsFile();
-    asn = asn || (inputs.shipment && inputs.shipment.asn);
-    po  = po  || (inputs.shipment && inputs.shipment.po);
-    sku = sku || (inputs.shipment && inputs.shipment.sku);
+    asn = asn || inputs.asn;
+    po  = po  || inputs.po;
+    sku = sku || inputs.sku;
+    skuQty = skuQty || inputs.skuQty;
   }
 
   if (!asn || !po || !sku) {
     throw new Error(
-      "Usage: node src/run-shipment-once.js <ASN> <PO> <SKU> [--no-upload]\n" +
-      "  Or set shipment.asn, shipment.po, and shipment.sku in config/inputs.json"
+      "Usage: node src/run-shipment-once.js <ASN> <PO> <SKU> [<SKU_QTY>] [--no-upload]\n" +
+      "  Or set asn, po, sku, and skuQty in config/inputs.json"
     );
   }
 
@@ -35,6 +36,7 @@ async function main() {
     asn,
     po,
     sku,
+    skuQty,
     outputDir,
     sequenceFile: getCarrierSequenceFile(process.env),
   });

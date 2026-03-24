@@ -140,8 +140,21 @@ Skip upload for any CLI command by adding `--no-upload`.
 
 If values are omitted, the CLI scripts read defaults from `config/inputs.json`.
 
-## MCP Server
+Recommended `config/inputs.json` shape for shared defaults:
 
+```json
+{
+  "asn": "51470000001194",
+  "po": "500034214743",
+  "sku": "140260042",
+   "skuQty": "1",
+   "ace": "VB-0000002044"
+ }
+ ```
+ 
+ `asn` is shared across carrier shipment and bulk status when CLI ASN arguments are omitted.
+ `po` and `sku` are shared defaults for carrier shipment when CLI PO/SKU arguments are omitted.
+ `skuQty` is the SKU quantity used in carrier shipment SQ measure when CLI SKU_QTY argument is omitted (defaults to "1").
 Start the MCP server:
 
 ```bash

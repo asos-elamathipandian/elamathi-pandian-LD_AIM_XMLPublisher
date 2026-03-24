@@ -1,4 +1,4 @@
-const { writeBulkStatusFile } = require("./bulk-status");
+const { writeAsnRcvFile } = require("./asn-rcv");
 const { uploadFileToSftp } = require("./sftp");
 const { buildSftpConfigFromEnv } = require("./sftp-config");
 const { getOutputDir, loadEnvironment, loadInputsFile } = require("./app-config");
@@ -17,17 +17,13 @@ async function main() {
 
   if (!asn) {
     throw new Error(
-      "Usage: node src/run-bst-once.js <ASN> [--no-upload]\n" +
+      "Usage: node src/run-asn-rcv-once.js <ASN> [--no-upload]\n" +
       "  Or set asn in config/inputs.json"
     );
   }
 
   const outputDir = getOutputDir(process.env);
-
-  const generated = await writeBulkStatusFile({
-    asn,
-    outputDir,
-  });
+  const generated = await writeAsnRcvFile({ asn, outputDir });
 
   const result = {
     ok: true,
@@ -38,13 +34,11 @@ async function main() {
 
   if (!noUpload) {
     const sftpConfig = buildSftpConfigFromEnv(process.env);
-
     const uploadResult = await uploadFileToSftp({
       localFilePath: generated.filePath,
       remoteDir: sftpConfig.remoteDir,
       connectionOptions: sftpConfig.connectionOptions,
     });
-
     result.uploaded = true;
     result.remotePath = uploadResult.remotePath;
   }

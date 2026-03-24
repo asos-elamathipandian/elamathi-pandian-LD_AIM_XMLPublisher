@@ -80,7 +80,7 @@ async function getNextSequence(sequenceFile = getCarrierSequenceFile()) {
   return nextSequence;
 }
 
-function buildCarrierShipmentXml({ asn, po, sku, now, sequence }) {
+function buildCarrierShipmentXml({ asn, po, sku, skuQty, now, sequence }) {
   const ctrlNumber = formatCtrlNumber(now);
   const transmissionTimestamp = formatTimestamp(now);
   const csi = `AEE00000${sequence}`;
@@ -89,13 +89,26 @@ function buildCarrierShipmentXml({ asn, po, sku, now, sequence }) {
   const manDate = formatDateYYYYMMDD(addDays(now, 9));
   const eqOrFpKey = `AH${sequence}AE / A${sequence}BE`;
 
-  return `<XMLBundle>\n<XMLTransmission CtrlNumber="${ctrlNumber}" Receiver="E2ASOS" Sender="DAVIESTN" Timestamp="${transmissionTimestamp}">\n<XMLGroup CtrlNumber="${ctrlNumber}" GroupType="BP" IncludedMessages="2">\n<XMLTransaction CtrlNumber="${ctrlNumber}" TransactionType="BPM-856">\n<BpMessage MessageType="856" PurposeCd="04">\n<Mode>30</Mode>\n<Reference RefTypeCd="SC" SourceRefTypeCd="128">TR</Reference>\n<Reference RefTypeCd="SHTYPE" SourceRefTypeCd="128">ASN</Reference>\n<Reference RefTypeCd="TF" SourceRefTypeCd="128">CFS/CY</Reference>\n<Reference RefTypeCd="CSI" SourceRefTypeCd="128">${csi}</Reference>\n<Reference RefTypeCd="EXCP" SourceRefTypeCd="128">Compliant</Reference>\n<Reference RefTypeCd="NONCP" SourceRefTypeCd="128">Compliant</Reference>\n<Reference RefTypeCd="LD" SourceRefTypeCd="128">LTL</Reference>\n<Reference RefTypeCd="CATN" SourceRefTypeCd="128">${catn}</Reference>\n<Date DateTypeCd="DO" TimeZone="">${doDate}</Date>\n<Date DateTypeCd="MAN" TimeZone="">${manDate}</Date>\n<TradePartner RoleCd="CA">\n<TradePartnerName>Davies Turner</TradePartnerName>\n<TradePartnerID Qualifier="93">DT</TradePartnerID>\n</TradePartner>\n<TradePartner RoleCd="FD">\n<TradePartnerName>FC01 Asos Barnsley</TradePartnerName>\n<TradePartnerID Qualifier="93">FC01</TradePartnerID>\n<TradePartnerAddress>\n<City>Grimethorpe</City>\n<CountryCd>GB</CountryCd>\n</TradePartnerAddress>\n</TradePartner>\n<TradePartner RoleCd="FS">\n<TradePartnerName>FC01 Asos Barnsley</TradePartnerName>\n<TradePartnerID Qualifier="93">FC01</TradePartnerID>\n<TradePartnerAddress>\n<City>Grimethorpe</City>\n<CountryCd>GB</CountryCd>\n</TradePartnerAddress>\n</TradePartner>\n<Document DocType="SHIP" Key="${asn}">\n<DocumentID>${asn}</DocumentID>\n<Measure Qualifier="WGT" SourceQualifier="738" SourceUOMCd="355" UOMCd="KG">2</Measure>\n<Order Key="${po}" OrderType="PO">\n<OrderID>${po}</OrderID>\n<LineItem Key="${sku}">\n<Attribute AttributeTypeCd="SK">${sku}</Attribute>\n<Measure EqOrFpKey="${eqOrFpKey}" Qualifier="SQ" SourceUOMCd="355" UOMCd="UN">1</Measure>\n</LineItem>\n</Order>\n</Document>\n<Equipment Key="${eqOrFpKey}">\n<EquipmentNumber>${eqOrFpKey}</EquipmentNumber>\n<EquipmentDescCd>TL</EquipmentDescCd>\n<Reference RefTypeCd="SN"/>\n</Equipment>\n<Relationship DocKey="${asn}" EqKey="${eqOrFpKey}"/>\n</BpMessage>\n</XMLTransaction>\n</XMLGroup>\n</XMLTransmission>\n</XMLBundle>\n`;
+  // Parse comma-separated SKUs and quantities
+  const skus = sku.split(",").map(s => s.trim());
+  const quantities = skuQty.split(",").map(q => q.trim());
+
+  // Build LineItem elements for each SKU
+  const lineItems = skus
+    .map((skuValue, index) => {
+      const qty = quantities[index] || quantities[0] || "1"; // fallback to first qty or 1
+      return `<LineItem Key="${skuValue}">\n<Attribute AttributeTypeCd="SK">${skuValue}</Attribute>\n<Measure EqOrFpKey="${eqOrFpKey}" Qualifier="SQ" SourceUOMCd="355" UOMCd="UN">${qty}</Measure>\n</LineItem>`;
+    })
+    .join("\n");
+
+  return `<XMLBundle>\n<XMLTransmission CtrlNumber="${ctrlNumber}" Receiver="E2ASOS" Sender="DAVIESTN" Timestamp="${transmissionTimestamp}">\n<XMLGroup CtrlNumber="${ctrlNumber}" GroupType="BP" IncludedMessages="2">\n<XMLTransaction CtrlNumber="${ctrlNumber}" TransactionType="BPM-856">\n<BpMessage MessageType="856" PurposeCd="04">\n<Mode>30</Mode>\n<Reference RefTypeCd="SC" SourceRefTypeCd="128">TR</Reference>\n<Reference RefTypeCd="SHTYPE" SourceRefTypeCd="128">ASN</Reference>\n<Reference RefTypeCd="TF" SourceRefTypeCd="128">CFS/CY</Reference>\n<Reference RefTypeCd="CSI" SourceRefTypeCd="128">${csi}</Reference>\n<Reference RefTypeCd="EXCP" SourceRefTypeCd="128">Compliant</Reference>\n<Reference RefTypeCd="NONCP" SourceRefTypeCd="128">Compliant</Reference>\n<Reference RefTypeCd="LD" SourceRefTypeCd="128">LTL</Reference>\n<Reference RefTypeCd="CATN" SourceRefTypeCd="128">${catn}</Reference>\n<Date DateTypeCd="DO" TimeZone="">${doDate}</Date>\n<Date DateTypeCd="MAN" TimeZone="">${manDate}</Date>\n<TradePartner RoleCd="CA">\n<TradePartnerName>Davies Turner</TradePartnerName>\n<TradePartnerID Qualifier="93">DT</TradePartnerID>\n</TradePartner>\n<TradePartner RoleCd="FD">\n<TradePartnerName>FC01 Asos Barnsley</TradePartnerName>\n<TradePartnerID Qualifier="93">FC01</TradePartnerID>\n<TradePartnerAddress>\n<City>Grimethorpe</City>\n<CountryCd>GB</CountryCd>\n</TradePartnerAddress>\n</TradePartner>\n<TradePartner RoleCd="FS">\n<TradePartnerName>FC01 Asos Barnsley</TradePartnerName>\n<TradePartnerID Qualifier="93">FC01</TradePartnerID>\n<TradePartnerAddress>\n<City>Grimethorpe</City>\n<CountryCd>GB</CountryCd>\n</TradePartnerAddress>\n</TradePartner>\n<Document DocType="SHIP" Key="${asn}">\n<DocumentID>${asn}</DocumentID>\n<Measure Qualifier="WGT" SourceQualifier="738" SourceUOMCd="355" UOMCd="KG">2</Measure>\n<Order Key="${po}" OrderType="PO">\n<OrderID>${po}</OrderID>\n${lineItems}\n</Order>\n</Document>\n<Equipment Key="${eqOrFpKey}">\n<EquipmentNumber>${eqOrFpKey}</EquipmentNumber>\n<EquipmentDescCd>TL</EquipmentDescCd>\n<Reference RefTypeCd="SN"/>\n</Equipment>\n<Relationship DocKey="${asn}" EqKey="${eqOrFpKey}"/>\n</BpMessage>\n</XMLTransaction>\n</XMLGroup>\n</XMLTransmission>\n</XMLBundle>\n`;
 }
 
 async function writeCarrierShipmentFile({
   asn,
   po,
   sku,
+  skuQty,
   outputDir,
   sequenceFile,
 }) {
@@ -105,6 +118,7 @@ async function writeCarrierShipmentFile({
     asn,
     po,
     sku,
+    skuQty,
     now,
     sequence,
   });

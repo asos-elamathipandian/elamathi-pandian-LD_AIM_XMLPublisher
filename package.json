@@ -11,6 +11,9 @@
     "generate:once": "node src/run-once.js",
     "generate:shipment": "node src/run-shipment-once.js",
     "generate:bst": "node src/run-bst-once.js",
+    "generate:asn-fcbkc": "node src/run-asn-fcbkc-once.js",
+    "generate:asn-rcv": "node src/run-asn-rcv-once.js",
+    "generate:asn-padex": "node src/run-asn-padex-once.js",
     "test": "echo \"No tests configured\""
   },
   "dependencies": {

@@ -17,13 +17,13 @@ async function main() {
 
   if (!ace) {
     const inputs = loadInputsFile();
-    ace = inputs.vbkcon && inputs.vbkcon.ace;
+    ace = inputs.ace;
   }
 
   if (!ace) {
     throw new Error(
       "Usage: node src/run-once.js <ACE> [--no-upload]\n" +
-      "  Or set vbkcon.ace in config/inputs.json"
+      "  Or set ace in config/inputs.json"
     );
   }
 

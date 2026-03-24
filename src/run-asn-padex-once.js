@@ -1,31 +1,41 @@
-const { writeBulkStatusFile } = require("./bulk-status");
+const { writeAsnPadexFile } = require("./asn-padex");
 const { uploadFileToSftp } = require("./sftp");
 const { buildSftpConfigFromEnv } = require("./sftp-config");
-const { getOutputDir, loadEnvironment, loadInputsFile } = require("./app-config");
+const {
+  getOutputDir,
+  loadEnvironment,
+  loadInputsFile,
+} = require("./app-config");
 
 loadEnvironment();
 
 async function main() {
   const args = process.argv.slice(2).filter(a => a !== "--no-upload");
   const noUpload = process.argv.includes("--no-upload");
-  let [asn] = args;
+  let [asn, po, sku, skuQty] = args;
 
-  if (!asn) {
+  if (!asn || !po || !sku) {
     const inputs = loadInputsFile();
-    asn = inputs.asn;
+    asn = asn || inputs.asn;
+    po  = po  || inputs.po;
+    sku = sku || inputs.sku;
+    skuQty = skuQty || inputs.skuQty;
   }
 
-  if (!asn) {
+  if (!asn || !po || !sku) {
     throw new Error(
-      "Usage: node src/run-bst-once.js <ASN> [--no-upload]\n" +
-      "  Or set asn in config/inputs.json"
+      "Usage: node src/run-asn-padex-once.js <ASN> <PO> <SKU> [<SKU_QTY>] [--no-upload]\n" +
+      "  Or set asn, po, sku, and skuQty in config/inputs.json"
     );
   }
 
   const outputDir = getOutputDir(process.env);
 
-  const generated = await writeBulkStatusFile({
+  const generated = await writeAsnPadexFile({
     asn,
+    po,
+    sku,
+    skuQty,
     outputDir,
   });
 

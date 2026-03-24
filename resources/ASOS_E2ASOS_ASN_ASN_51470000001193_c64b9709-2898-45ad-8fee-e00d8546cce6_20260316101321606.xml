@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<XMLBundle xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+		<XMLTransmission CtrlNumber="D3alXyw0wESB6qYRXlNX9A" Receiver="E2ASOS" Sender="ASOS" Timestamp="20260316 101321" TimeZone="UT"> <!-- keep the ctrl number value to unique following same pattern and timestamp can be current system time -->
+				<XMLGroup CtrlNumber="D3alXyw0wESB6qYRXlNX9A" GroupType="BP" IncludedMessages="1"><!-- Get value from above ctrlnumber -->
+						<XMLTransaction CtrlNumber="51470000001193" TransactionType="BPM-856"> <!-- Get value from user input ASN and have it against this ctrlnumber -->
+								<BpMessage MessageType="856" PurposeCd="04">
+										<Reference RefTypeCd="SHTYPE" SourceRefTypeCd="128">ASN</Reference>
+										<Reference RefTypeCd="SACHL" SourceRefTypeCd="128">R</Reference>
+										<Date TimeZone="UT" DateTypeCd="RCV_FRSTD">20260316 085616</Date> <!-- Date can be current system time + 2 min-->
+										<Date TimeZone="UT" DateTypeCd="RCV_FNLD">20260316 085616</Date> <!-- Date can be current system time + 2 min -->
+										<Document DocType="SHIP" Key="51470000001193"> <!-- get the value from input  ASN -->
+												<DocumentID>51470000001193</DocumentID> <!-- copy the value from above doctype key -->
+										</Document>
+								</BpMessage>
+						</XMLTransaction>
+				</XMLGroup>
+		</XMLTransmission>
+</XMLBundle>

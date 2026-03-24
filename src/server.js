@@ -8,6 +8,9 @@ const {
 const { writeVbkconFile } = require("./vbkcon");
 const { writeCarrierShipmentFile } = require("./carrier-shipment");
 const { writeBulkStatusFile } = require("./bulk-status");
+const { writeAsnFcbkcFile } = require("./asn-fcbkc");
+const { writeAsnRcvFile } = require("./asn-rcv");
+const { writeAsnPadexFile } = require("./asn-padex");
 const { uploadFileToSftp } = require("./sftp");
 const { buildSftpConfigFromEnv } = require("./sftp-config");
 const {
@@ -34,6 +37,23 @@ const shipmentInputSchema = z.object({
 
 const bulkStatusInputSchema = z.object({
   asn: z.string().min(1, "asn is required"),
+  uploadToSftp: z.boolean().optional().default(true),
+});
+
+const asnFcbkcInputSchema = z.object({
+  asn: z.string().min(1, "asn is required"),
+  uploadToSftp: z.boolean().optional().default(true),
+});
+
+const asnRcvInputSchema = z.object({
+  asn: z.string().min(1, "asn is required"),
+  uploadToSftp: z.boolean().optional().default(true),
+});
+
+const asnPadexInputSchema = z.object({
+  asn: z.string().min(1, "asn is required"),
+  po: z.string().min(1, "po is required"),
+  sku: z.string().min(1, "sku is required"),
   uploadToSftp: z.boolean().optional().default(true),
 });
 
@@ -124,6 +144,74 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["asn"],
         },
       },
+      {
+        name: "generate_asn_fcbkc",
+        description:
+          "Generate an ASN FCBKC milestone XML file from ASN and optionally upload it to SFTP.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            asn: {
+              type: "string",
+              description: "ASN value used for XMLTransaction CtrlNumber, Document Key and DocumentID",
+            },
+            uploadToSftp: {
+              type: "boolean",
+              description: "If true, upload generated file to configured SFTP path",
+              default: true,
+            },
+          },
+          required: ["asn"],
+        },
+      },
+      {
+        name: "generate_asn_rcv",
+        description:
+          "Generate an ASN RCV XML file containing both RCV_FRSTD and RCV_FNLD milestones from ASN and optionally upload it to SFTP.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            asn: {
+              type: "string",
+              description: "ASN value used for XMLTransaction CtrlNumber, Document Key and DocumentID",
+            },
+            uploadToSftp: {
+              type: "boolean",
+              description: "If true, upload generated file to configured SFTP path",
+              default: true,
+            },
+          },
+          required: ["asn"],
+        },
+      },
+      {
+        name: "generate_asn_padex",
+        description:
+          "Generate an ASN PADEX XML file from ASN, PO, and SKU and optionally upload it to SFTP.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            asn: {
+              type: "string",
+              description: "ASN value used for XMLTransaction CtrlNumber, Document Key and DocumentID",
+            },
+            po: {
+              type: "string",
+              description: "PO value used for Order Key and OrderID",
+            },
+            sku: {
+              type: "string",
+              description: "SKU value used for LineItem Key and SK Attribute",
+            },
+            uploadToSftp: {
+              type: "boolean",
+              description: "If true, upload generated file to configured SFTP path",
+              default: true,
+            },
+          },
+          required: ["asn", "po", "sku"],
+        },
+      },
     ],
   };
 });
@@ -132,7 +220,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (
     request.params.name !== "generate_vbkcon" &&
     request.params.name !== "generate_carrier_shipment" &&
-    request.params.name !== "generate_bulk_status"
+    request.params.name !== "generate_bulk_status" &&
+    request.params.name !== "generate_asn_fcbkc" &&
+    request.params.name !== "generate_asn_rcv" &&
+    request.params.name !== "generate_asn_padex"
   ) {
     throw new Error(`Unknown tool: ${request.params.name}`);
   }
@@ -245,6 +336,141 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         connectionOptions: sftpConfig.connectionOptions,
       });
 
+      response.uploaded = true;
+      response.remotePath = uploadResult.remotePath;
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response, null, 2),
+        },
+      ],
+    };
+  }
+
+  if (request.params.name === "generate_asn_fcbkc") {
+    const parsedFcbkc = asnFcbkcInputSchema.safeParse(request.params.arguments ?? {});
+    if (!parsedFcbkc.success) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ ok: false, error: parsedFcbkc.error.flatten() }, null, 2),
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    const { asn, uploadToSftp } = parsedFcbkc.data;
+    const generated = await writeAsnFcbkcFile({ asn, outputDir });
+
+    const response = {
+      ok: true,
+      fileName: generated.fileName,
+      filePath: generated.filePath,
+      uploaded: false,
+    };
+
+    if (uploadToSftp) {
+      const sftpConfig = buildSftpConfigFromEnv(process.env);
+      const uploadResult = await uploadFileToSftp({
+        localFilePath: generated.filePath,
+        remoteDir: sftpConfig.remoteDir,
+        connectionOptions: sftpConfig.connectionOptions,
+      });
+      response.uploaded = true;
+      response.remotePath = uploadResult.remotePath;
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response, null, 2),
+        },
+      ],
+    };
+  }
+
+  if (request.params.name === "generate_asn_rcv") {
+    const parsedRcv = asnRcvInputSchema.safeParse(request.params.arguments ?? {});
+    if (!parsedRcv.success) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ ok: false, error: parsedRcv.error.flatten() }, null, 2),
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    const { asn, uploadToSftp } = parsedRcv.data;
+    const generated = await writeAsnRcvFile({ asn, outputDir });
+
+    const response = {
+      ok: true,
+      fileName: generated.fileName,
+      filePath: generated.filePath,
+      uploaded: false,
+    };
+
+    if (uploadToSftp) {
+      const sftpConfig = buildSftpConfigFromEnv(process.env);
+      const uploadResult = await uploadFileToSftp({
+        localFilePath: generated.filePath,
+        remoteDir: sftpConfig.remoteDir,
+        connectionOptions: sftpConfig.connectionOptions,
+      });
+      response.uploaded = true;
+      response.remotePath = uploadResult.remotePath;
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response, null, 2),
+        },
+      ],
+    };
+  }
+
+  if (request.params.name === "generate_asn_padex") {
+    const parsedPadex = asnPadexInputSchema.safeParse(request.params.arguments ?? {});
+    if (!parsedPadex.success) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ ok: false, error: parsedPadex.error.flatten() }, null, 2),
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    const { asn, po, sku, uploadToSftp } = parsedPadex.data;
+    const generated = await writeAsnPadexFile({ asn, po, sku, skuQty: "1", outputDir });
+
+    const response = {
+      ok: true,
+      fileName: generated.fileName,
+      filePath: generated.filePath,
+      uploaded: false,
+    };
+
+    if (uploadToSftp) {
+      const sftpConfig = buildSftpConfigFromEnv(process.env);
+      const uploadResult = await uploadFileToSftp({
+        localFilePath: generated.filePath,
+        remoteDir: sftpConfig.remoteDir,
+        connectionOptions: sftpConfig.connectionOptions,
+      });
       response.uploaded = true;
       response.remotePath = uploadResult.remotePath;
     }
