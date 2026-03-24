@@ -148,13 +148,15 @@ Recommended `config/inputs.json` shape for shared defaults:
   "po": "500034214743",
   "sku": "140260042",
    "skuQty": "1",
-   "ace": "VB-0000002044"
+   "ace": "VB-0000002044",
+   "carrier": "DT"
  }
  ```
  
  `asn` is shared across carrier shipment and bulk status when CLI ASN arguments are omitted.
  `po` and `sku` are shared defaults for carrier shipment when CLI PO/SKU arguments are omitted.
  `skuQty` is the SKU quantity used in carrier shipment SQ measure when CLI SKU_QTY argument is omitted (defaults to "1").
+ `carrier` can be any one of these values: `DT`, `Maersk`, or `Advanced`.
 Start the MCP server:
 
 ```bash

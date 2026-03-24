@@ -1,6 +1,7 @@
 const path = require("path");
 const fs = require("fs/promises");
 const { getCarrierSequenceFile } = require("./app-config");
+const { getCarrierProfile } = require("./carrier-profile");
 
 function pad(number, size = 2) {
   return String(number).padStart(size, "0");
@@ -80,7 +81,8 @@ async function getNextSequence(sequenceFile = getCarrierSequenceFile()) {
   return nextSequence;
 }
 
-function buildCarrierShipmentXml({ asn, po, sku, skuQty, now, sequence }) {
+function buildCarrierShipmentXml({ asn, po, sku, skuQty, carrier = "DT", now, sequence }) {
+  const carrierProfile = getCarrierProfile(carrier);
   const ctrlNumber = formatCtrlNumber(now);
   const transmissionTimestamp = formatTimestamp(now);
   const csi = `AEE00000${sequence}`;
@@ -101,7 +103,7 @@ function buildCarrierShipmentXml({ asn, po, sku, skuQty, now, sequence }) {
     })
     .join("\n");
 
-  return `<XMLBundle>\n<XMLTransmission CtrlNumber="${ctrlNumber}" Receiver="E2ASOS" Sender="DAVIESTN" Timestamp="${transmissionTimestamp}">\n<XMLGroup CtrlNumber="${ctrlNumber}" GroupType="BP" IncludedMessages="2">\n<XMLTransaction CtrlNumber="${ctrlNumber}" TransactionType="BPM-856">\n<BpMessage MessageType="856" PurposeCd="04">\n<Mode>30</Mode>\n<Reference RefTypeCd="SC" SourceRefTypeCd="128">TR</Reference>\n<Reference RefTypeCd="SHTYPE" SourceRefTypeCd="128">ASN</Reference>\n<Reference RefTypeCd="TF" SourceRefTypeCd="128">CFS/CY</Reference>\n<Reference RefTypeCd="CSI" SourceRefTypeCd="128">${csi}</Reference>\n<Reference RefTypeCd="EXCP" SourceRefTypeCd="128">Compliant</Reference>\n<Reference RefTypeCd="NONCP" SourceRefTypeCd="128">Compliant</Reference>\n<Reference RefTypeCd="LD" SourceRefTypeCd="128">LTL</Reference>\n<Reference RefTypeCd="CATN" SourceRefTypeCd="128">${catn}</Reference>\n<Date DateTypeCd="DO" TimeZone="">${doDate}</Date>\n<Date DateTypeCd="MAN" TimeZone="">${manDate}</Date>\n<TradePartner RoleCd="CA">\n<TradePartnerName>Davies Turner</TradePartnerName>\n<TradePartnerID Qualifier="93">DT</TradePartnerID>\n</TradePartner>\n<TradePartner RoleCd="FD">\n<TradePartnerName>FC01 Asos Barnsley</TradePartnerName>\n<TradePartnerID Qualifier="93">FC01</TradePartnerID>\n<TradePartnerAddress>\n<City>Grimethorpe</City>\n<CountryCd>GB</CountryCd>\n</TradePartnerAddress>\n</TradePartner>\n<TradePartner RoleCd="FS">\n<TradePartnerName>FC01 Asos Barnsley</TradePartnerName>\n<TradePartnerID Qualifier="93">FC01</TradePartnerID>\n<TradePartnerAddress>\n<City>Grimethorpe</City>\n<CountryCd>GB</CountryCd>\n</TradePartnerAddress>\n</TradePartner>\n<Document DocType="SHIP" Key="${asn}">\n<DocumentID>${asn}</DocumentID>\n<Measure Qualifier="WGT" SourceQualifier="738" SourceUOMCd="355" UOMCd="KG">2</Measure>\n<Order Key="${po}" OrderType="PO">\n<OrderID>${po}</OrderID>\n${lineItems}\n</Order>\n</Document>\n<Equipment Key="${eqOrFpKey}">\n<EquipmentNumber>${eqOrFpKey}</EquipmentNumber>\n<EquipmentDescCd>TL</EquipmentDescCd>\n<Reference RefTypeCd="SN"/>\n</Equipment>\n<Relationship DocKey="${asn}" EqKey="${eqOrFpKey}"/>\n</BpMessage>\n</XMLTransaction>\n</XMLGroup>\n</XMLTransmission>\n</XMLBundle>\n`;
+  return `<XMLBundle>\n<XMLTransmission CtrlNumber="${ctrlNumber}" Receiver="E2ASOS" Sender="${carrierProfile.filePrefix}" Timestamp="${transmissionTimestamp}">\n<XMLGroup CtrlNumber="${ctrlNumber}" GroupType="BP" IncludedMessages="2">\n<XMLTransaction CtrlNumber="${ctrlNumber}" TransactionType="BPM-856">\n<BpMessage MessageType="856" PurposeCd="04">\n<Mode>30</Mode>\n<Reference RefTypeCd="SC" SourceRefTypeCd="128">TR</Reference>\n<Reference RefTypeCd="SHTYPE" SourceRefTypeCd="128">ASN</Reference>\n<Reference RefTypeCd="TF" SourceRefTypeCd="128">CFS/CY</Reference>\n<Reference RefTypeCd="CSI" SourceRefTypeCd="128">${csi}</Reference>\n<Reference RefTypeCd="EXCP" SourceRefTypeCd="128">Compliant</Reference>\n<Reference RefTypeCd="NONCP" SourceRefTypeCd="128">Compliant</Reference>\n<Reference RefTypeCd="LD" SourceRefTypeCd="128">LTL</Reference>\n<Reference RefTypeCd="CATN" SourceRefTypeCd="128">${catn}</Reference>\n<Date DateTypeCd="DO" TimeZone="">${doDate}</Date>\n<Date DateTypeCd="MAN" TimeZone="">${manDate}</Date>\n<TradePartner RoleCd="CA">\n<TradePartnerName>${carrierProfile.shipmentCaName}</TradePartnerName>\n<TradePartnerID Qualifier="93">${carrierProfile.shipmentCaId}</TradePartnerID>\n</TradePartner>\n<TradePartner RoleCd="FD">\n<TradePartnerName>FC01 Asos Barnsley</TradePartnerName>\n<TradePartnerID Qualifier="93">FC01</TradePartnerID>\n<TradePartnerAddress>\n<City>Grimethorpe</City>\n<CountryCd>GB</CountryCd>\n</TradePartnerAddress>\n</TradePartner>\n<TradePartner RoleCd="FS">\n<TradePartnerName>FC01 Asos Barnsley</TradePartnerName>\n<TradePartnerID Qualifier="93">FC01</TradePartnerID>\n<TradePartnerAddress>\n<City>Grimethorpe</City>\n<CountryCd>GB</CountryCd>\n</TradePartnerAddress>\n</TradePartner>\n<Document DocType="SHIP" Key="${asn}">\n<DocumentID>${asn}</DocumentID>\n<Measure Qualifier="WGT" SourceQualifier="738" SourceUOMCd="355" UOMCd="KG">2</Measure>\n<Order Key="${po}" OrderType="PO">\n<OrderID>${po}</OrderID>\n${lineItems}\n</Order>\n</Document>\n<Equipment Key="${eqOrFpKey}">\n<EquipmentNumber>${eqOrFpKey}</EquipmentNumber>\n<EquipmentDescCd>TL</EquipmentDescCd>\n<Reference RefTypeCd="SN"/>\n</Equipment>\n<Relationship DocKey="${asn}" EqKey="${eqOrFpKey}"/>\n</BpMessage>\n</XMLTransaction>\n</XMLGroup>\n</XMLTransmission>\n</XMLBundle>\n`;
 }
 
 async function writeCarrierShipmentFile({
@@ -109,22 +111,25 @@ async function writeCarrierShipmentFile({
   po,
   sku,
   skuQty,
+  carrier = "DT",
   outputDir,
   sequenceFile,
 }) {
   const now = new Date();
   const sequence = await getNextSequence(sequenceFile);
+  const carrierProfile = getCarrierProfile(carrier);
   const xmlContent = buildCarrierShipmentXml({
     asn,
     po,
     sku,
     skuQty,
+    carrier,
     now,
     sequence,
   });
 
   const fileTimestamp = formatFileTimestamp(now);
-  const fileName = `DAVIESTN_E2ASOS_Shipment_1.0_${fileTimestamp}_${asn}.xml`;
+  const fileName = `${carrierProfile.filePrefix}_E2ASOS_Shipment_1.0_${fileTimestamp}_${asn}.xml`;
   const absoluteOutputDir = path.resolve(outputDir);
   const filePath = path.join(absoluteOutputDir, fileName);
 

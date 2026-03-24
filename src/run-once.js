@@ -13,17 +13,18 @@ loadEnvironment();
 async function main() {
   const args = process.argv.slice(2).filter(a => a !== "--no-upload");
   const noUpload = process.argv.includes("--no-upload");
-  let [ace] = args;
+  let [ace, carrier] = args;
 
   if (!ace) {
     const inputs = loadInputsFile();
     ace = inputs.ace;
+    carrier = carrier || inputs.carrier;
   }
 
   if (!ace) {
     throw new Error(
-      "Usage: node src/run-once.js <ACE> [--no-upload]\n" +
-      "  Or set ace in config/inputs.json"
+      "Usage: node src/run-once.js <ACE> [<CARRIER>] [--no-upload]\n" +
+      "  Or set ace and carrier in config/inputs.json"
     );
   }
 
@@ -31,6 +32,7 @@ async function main() {
 
   const generated = await writeVbkconFile({
     ace,
+    carrier,
     outputDir,
     abvCounterFile: getAbvCounterFile(process.env),
   });

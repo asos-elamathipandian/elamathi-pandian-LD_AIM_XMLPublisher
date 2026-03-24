@@ -25,6 +25,7 @@ loadEnvironment();
 const inputSchema = z.object({
   abv: z.string().min(1, "abv is required"),
   ace: z.string().min(1, "ace is required"),
+  carrier: z.string().optional().default("DT"),
   uploadToSftp: z.boolean().optional().default(true),
 });
 
@@ -32,6 +33,8 @@ const shipmentInputSchema = z.object({
   asn: z.string().min(1, "asn is required"),
   po: z.string().min(1, "po is required"),
   sku: z.string().min(1, "sku is required"),
+  skuQty: z.string().optional().default("1"),
+  carrier: z.string().optional().default("DT"),
   uploadToSftp: z.boolean().optional().default(true),
 });
 
@@ -87,6 +90,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "ACE reference to use in ACE Reference node",
             },
+            carrier: {
+              type: "string",
+              description: "Carrier value used to set CA values and file prefix. Allowed: DT, Maersk, Advanced",
+              default: "DT",
+            },
             uploadToSftp: {
               type: "boolean",
               description: "If true, upload generated file to configured SFTP path",
@@ -114,6 +122,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             sku: {
               type: "string",
               description: "SKU value used for LineItem Key and SK Attribute",
+            },
+            skuQty: {
+              type: "string",
+              description: "SKU quantity value for each line item (single value or comma-separated values)",
+              default: "1",
+            },
+            carrier: {
+              type: "string",
+              description: "Carrier value used to set CA ID and file prefix. Allowed: DT, Maersk, Advanced",
+              default: "DT",
             },
             uploadToSftp: {
               type: "boolean",
@@ -251,11 +269,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
     }
 
-    const { asn, po, sku, uploadToSftp } = parsedShipment.data;
+    const { asn, po, sku, skuQty, carrier, uploadToSftp } = parsedShipment.data;
     const generated = await writeCarrierShipmentFile({
       asn,
       po,
       sku,
+      skuQty,
+      carrier,
       outputDir,
       sequenceFile: getCarrierSequenceFile(process.env),
     });
@@ -505,11 +525,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 
-  const { abv, ace, uploadToSftp } = parsed.data;
+  const { abv, ace, carrier, uploadToSftp } = parsed.data;
 
   const generated = await writeVbkconFile({
     abv,
     ace,
+    carrier,
     outputDir,
     abvCounterFile: getAbvCounterFile(process.env),
   });

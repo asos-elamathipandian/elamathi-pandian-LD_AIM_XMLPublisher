@@ -1,5 +1,5 @@
 <XMLBundle>
-<XMLTransmission CtrlNumber="20260130110522" Receiver="E2ASOS" Sender="DAVIESTN" Timestamp="20260130 1106"><!-- Timestamp, CtrlNumber with current Timestamp  -->
+<XMLTransmission CtrlNumber="20260130110522" Receiver="E2ASOS" Sender="DAVIESTN" Timestamp="20260130 1106"><!-- Timestamp, CtrlNumber with current Timestamp. Sender depends on carrier: DT->DAVIESTN, Maersk->MAEU, Advanced->ADV -->
 <XMLGroup CtrlNumber="20260130110522" GroupType="BP" IncludedMessages="1"> <!-- CtrlNumber with current Timestamp -->
 <XMLTransaction CtrlNumber="20260130110522" TransactionType="BPM-VBKCON"> <!-- CtrlNumber with current Timestamp -->
 <BpMessage MessageType="VBKCON" PurposeCd="00">
