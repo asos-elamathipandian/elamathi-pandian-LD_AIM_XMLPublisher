@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XML Message Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6f9;
+      color: #333;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: white;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: 0.02em; }
+    header .badge {
+      background: #e94560;
+      color: white;
+      font-size: 0.68rem;
+      padding: 3px 9px;
+      border-radius: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+
+    .container { max-width: 860px; margin: 28px auto; padding: 0 20px; }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px 28px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+
+    /* ── Form ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .form-group input,
+    .form-group select {
+      padding: 9px 13px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 0.93rem;
+      color: #333;
+      background: white;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus,
+    .form-group select:focus { outline: none; border-color: #4361ee; }
+    .form-group input::placeholder { color: #bbb; }
+
+    /* ── Buttons ── */
+    .btn-generate-all {
+      width: 100%;
+      padding: 13px;
+      background: #1a1a2e;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.97rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: background 0.2s, transform 0.1s;
+      margin-bottom: 16px;
+    }
+    .btn-generate-all:hover { background: #16213e; }
+    .btn-generate-all:active { transform: scale(0.99); }
+    .btn-generate-all:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .individual-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .btn-msg {
+      padding: 11px 8px;
+      border: none;
+      border-radius: 9px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      color: white;
+      text-align: center;
+      letter-spacing: 0.02em;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn-msg:hover   { opacity: 0.88; }
+    .btn-msg:active  { transform: scale(0.97); }
+    .btn-msg:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-vbkcon   { background: #4361ee; }
+    .btn-bst      { background: #27ae60; }
+    .btn-shipment { background: #e67e22; }
+    .btn-fcbkc    { background: #8e44ad; }
+    .btn-rcv      { background: #e94560; }
+    .btn-padex    { background: #16a085; }
+
+    .btn-label-sub {
+      display: block;
+      font-size: 0.68rem;
+      font-weight: 400;
+      opacity: 0.85;
+      margin-top: 2px;
+    }
+
+    /* ── Results ── */
+    #results { display: none; }
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    .results-header .card-title { margin: 0; padding: 0; border: none; }
+    .btn-clear {
+      background: none;
+      border: 1.5px solid #ddd;
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: 0.78rem;
+      color: #888;
+      cursor: pointer;
+    }
+    .btn-clear:hover { background: #f5f5f5; }
+
+    .result-list { display: flex; flex-direction: column; gap: 9px; }
+
+    .result-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      padding: 11px 15px;
+      border-radius: 8px;
+      font-size: 0.87rem;
+    }
+    .result-item.success { background: #f0fdf4; border-left: 4px solid #22c55e; }
+    .result-item.error   { background: #fef2f2; border-left: 4px solid #ef4444; }
+    .result-item.loading { background: #eff6ff; border-left: 4px solid #3b82f6; }
+
+    .result-icon  { font-size: 1rem; flex-shrink: 0; margin-top: 2px; }
+    .result-body  { flex: 1; min-width: 0; }
+    .result-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 3px;
+    }
+    .result-filename {
+      font-family: "Courier New", monospace;
+      font-size: 0.78rem;
+      color: #444;
+      word-break: break-all;
+    }
+    .result-remote {
+      font-size: 0.73rem;
+      color: #888;
+      margin-top: 2px;
+      word-break: break-all;
+    }
+    .result-error { color: #ef4444; font-weight: 600; font-size: 0.85rem; }
+
+    /* Spinner */
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #3b82f6;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Progress steps */
+    .progress-steps {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .step {
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+    .step.queued   { background: #e0e7ff; color: #4361ee; }
+    .step.active   { background: #dbeafe; color: #1d4ed8; }
+    .step.done     { background: #dcfce7; color: #15803d; }
+    .step.skipped  { background: #f1f5f9; color: #94a3b8; }
+    .step-arrow    { color: #cbd5e1; font-size: 0.7rem; }
+
+    /* Field hints */
+    .field-hint {
+      font-size: 0.7rem;
+      color: #9ca3af;
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 580px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .individual-buttons { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>XML Message Generator</h1>
+  <span class="badge">E2ASOS</span>
+</header>
+
+<main class="container">
+
+  <!-- ── Input Parameters ── -->
+  <div class="card">
+    <div class="card-title">Input Parameters</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="asn">ASN</label>
+        <input id="asn" type="text" placeholder="e.g. 49870000001275" />
+      </div>
+      <div class="form-group">
+        <label for="po">PO</label>
+        <input id="po" type="text" placeholder="e.g. 500034216385" />
+      </div>
+      <div class="form-group">
+        <label for="sku">SKU</label>
+        <input id="sku" type="text" placeholder="e.g. 148609059 or 148609059,140260042" />
+        <span class="field-hint">Multiple SKUs: comma-separated, e.g. <strong>SKU1,SKU2</strong></span>
+      </div>
+      <div class="form-group">
+        <label for="skuQty">SKU Qty</label>
+        <input id="skuQty" type="text" placeholder="e.g. 100 or 100,50" value="1" />
+        <span class="field-hint">Match SKU order: e.g. <strong>100,50</strong> for two SKUs</span>
+      </div>
+      <div class="form-group">
+        <label for="ace">ACE</label>
+        <input id="ace" type="text" placeholder="e.g. VB-0000002052" />
+      </div>
+      <div class="form-group">
+        <label for="carrier">Carrier</label>
+        <select id="carrier">
+          <option value="DT">DT — Davies Turner</option>
+          <option value="Maersk">Maersk</option>
+          <option value="Advanced">Advanced</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Generate Buttons ── -->
+  <div class="card">
+    <div class="card-title">Generate Messages</div>
+
+    <button class="btn-generate-all" id="btnAll" onclick="generateAll()">
+      &#9654;&nbsp; Generate All 6 Messages
+    </button>
+
+    <div class="individual-buttons">
+      <button class="btn-msg btn-vbkcon" onclick="generateOne('vbkcon', 'VBKCON')">
+        VBKCON
+      </button>
+      <button class="btn-msg btn-bst" onclick="generateOne('bst', 'Bulk Status')">
+        Bulk Status
+        <span class="btn-label-sub">BST</span>
+      </button>
+      <button class="btn-msg btn-shipment" onclick="generateOne('shipment', 'Carrier Shipment')">
+        Carrier Shipment
+      </button>
+      <button class="btn-msg btn-fcbkc" onclick="generateOne('asn-fcbkc', 'ASN FCBKC')">
+        ASN FCBKC
+      </button>
+      <button class="btn-msg btn-rcv" onclick="generateOne('asn-rcv', 'ASN RCV')">
+        ASN RCV
+      </button>
+      <button class="btn-msg btn-padex" onclick="generateOne('asn-padex', 'ASN PADEX')">
+        ASN PADEX
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Results ── -->
+  <div class="card" id="results">
+    <div class="results-header">
+      <div class="card-title">Results</div>
+      <button class="btn-clear" onclick="clearResults()">Clear</button>
+    </div>
+    <div class="result-list" id="resultList"></div>
+  </div>
+
+</main>
+
+<script>
+  function getInputs() {
+    return {
+      asn:     document.getElementById("asn").value.trim(),
+      po:      document.getElementById("po").value.trim(),
+      sku:     document.getElementById("sku").value.trim(),
+      skuQty:  document.getElementById("skuQty").value.trim() || "1",
+      ace:     document.getElementById("ace").value.trim(),
+      carrier: document.getElementById("carrier").value,
+    };
+  }
+
+  function setAllButtons(disabled) {
+    document.querySelectorAll(".btn-msg, .btn-generate-all")
+      .forEach(b => (b.disabled = disabled));
+  }
+
+  function showResults() {
+    document.getElementById("results").style.display = "block";
+  }
+
+  function clearResults() {
+    document.getElementById("resultList").innerHTML = "";
+    document.getElementById("results").style.display = "none";
+  }
+
+  // ── Per-row timers ────────────────────────────────────────────────────────
+  const rowTimers = {};
+
+  function startTimer(id) { rowTimers[id] = Date.now(); }
+
+  function elapsedSec(id) {
+    if (!rowTimers[id]) return "";
+    return ((Date.now() - rowTimers[id]) / 1000).toFixed(1) + "s";
+  }
+
+  // ── Progress-aware row helpers ─────────────────────────────────────────────
+
+  const STEPS = [
+    { key: "queued",    label: "Queued"    },
+    { key: "generating", label: "Generating file" },
+    { key: "uploading", label: "Uploading to SFTP" },
+    { key: "done",      label: "Complete"  },
+  ];
+
+  function stepsHtml(activeKey) {
+    return `<div class="progress-steps">` +
+      STEPS.map((s, i) => {
+        const cls = s.key === activeKey ? "active"
+                  : STEPS.findIndex(x => x.key === activeKey) > i ? "done"
+                  : "queued";
+        return (i > 0 ? `<span class="step-arrow">›</span>` : "") +
+               `<span class="step ${cls}">${s.label}</span>`;
+      }).join("") +
+    `</div>`;
+  }
+
+  function addRow(id, label, initialStep = "queued") {
+    showResults();
+    if (initialStep !== "queued") startTimer(id);
+    const list = document.getElementById("resultList");
+    const div = document.createElement("div");
+    div.className = "result-item loading";
+    div.id = "row-" + id;
+    div.innerHTML =
+      `<div class="spinner"></div>` +
+      `<div class="result-body">` +
+        `<div class="result-label">${label}</div>` +
+        stepsHtml(initialStep) +
+      `</div>`;
+    list.appendChild(div);
+  }
+
+  function setRowStep(id, label, stepKey) {
+    if (stepKey === "generating" && !rowTimers[id]) startTimer(id);
+    const div = document.getElementById("row-" + id);
+    if (!div) return;
+    div.className = "result-item loading";
+    div.innerHTML =
+      `<div class="spinner"></div>` +
+      `<div class="result-body">` +
+        `<div class="result-label">${label}</div>` +
+        stepsHtml(stepKey) +
+      `</div>`;
+  }
+
+  function updateRow(id, label, result) {
+    const div = document.getElementById("row-" + id);
+    if (!div) return;
+    if (result.ok) {
+      // Show final done steps then file detail
+      div.className = "result-item success";
+      div.innerHTML =
+        `<div class="result-icon">✅</div>` +
+        `<div class="result-body">` +
+          `<div class="result-label">${label}</div>` +
+          `<div class="progress-steps">` +
+            STEPS.map((s, i) =>
+              (i > 0 ? `<span class="step-arrow">›</span>` : "") +
+              `<span class="step done">${s.label}</span>`
+            ).join("") +
+          `</div>` +
+          `<div class="result-filename" style="margin-top:6px">${result.fileName}</div>` +
+          `<div class="result-remote">📤 ${result.remotePath || ""}</div>` +
+          `<div class="result-remote" style="color:#6b7280;margin-top:3px">⏱ Completed in ${elapsedSec(id)}</div>` +
+        `</div>`;
+    } else {
+      div.className = "result-item error";
+      div.innerHTML =
+        `<div class="result-icon">❌</div>` +
+        `<div class="result-body">` +
+          `<div class="result-label">${label}</div>` +
+          `<div class="result-error" style="margin-top:4px">${result.error}</div>` +
+        `</div>`;
+    }
+  }
+
+  // ── Single message generator ─────────────────────────────────────────────
+
+  async function generateOne(endpoint, label) {
+    const inputs = getInputs();
+    setAllButtons(true);
+    const rowId = endpoint + "-" + Date.now();
+    addRow(rowId, label, "generating");
+    try {
+      // Short pause so user sees "Generating" step before uploading
+      const res = await fetch("/api/generate/" + endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(inputs),
+      });
+      // Briefly show uploading step
+      setRowStep(rowId, label, "uploading");
+      await new Promise(r => setTimeout(r, 300));
+      updateRow(rowId, label, await res.json().catch(() => ({ ok: false, error: "Invalid response" })));
+    } catch (e) {
+      updateRow(rowId, label, { ok: false, error: e.message });
+    } finally {
+      setAllButtons(false);
+    }
+  }
+
+  // ── Generate All — calls individual endpoints sequentially for live progress
+
+  async function generateAll() {
+    const inputs = getInputs();
+    setAllButtons(true);
+
+    const messages = [
+      { endpoint: "vbkcon",    label: "VBKCON"            },
+      { endpoint: "bst",       label: "Bulk Status (BST)"  },
+      { endpoint: "shipment",  label: "Carrier Shipment"   },
+      { endpoint: "asn-fcbkc", label: "ASN FCBKC"          },
+      { endpoint: "asn-rcv",   label: "ASN RCV"             },
+      { endpoint: "asn-padex", label: "ASN PADEX"           },
+    ];
+
+    // Pre-create all rows as Queued
+    messages.forEach(m => addRow(m.endpoint, m.label, "queued"));
+
+    for (const m of messages) {
+      // Move current row to Generating
+      setRowStep(m.endpoint, m.label, "generating");
+      try {
+        const res = await fetch("/api/generate/" + m.endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(inputs),
+        });
+        // Show Uploading step briefly
+        setRowStep(m.endpoint, m.label, "uploading");
+        await new Promise(r => setTimeout(r, 350));
+        const data = await res.json();
+        updateRow(m.endpoint, m.label, data);
+      } catch (e) {
+        updateRow(m.endpoint, m.label, { ok: false, error: e.message });
+      }
+    }
+
+    setAllButtons(false);
+  }
+</script>
+
+</body>
+</html>
