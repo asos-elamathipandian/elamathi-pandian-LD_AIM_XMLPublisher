@@ -243,6 +243,79 @@
       .form-grid { grid-template-columns: 1fr; }
       .individual-buttons { grid-template-columns: 1fr 1fr; }
     }
+
+    /* ── Booking Section ── */
+    .btn-booking {
+      width: 100%;
+      padding: 13px;
+      background: #e94560;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.97rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-booking:hover { background: #c73e54; }
+    .btn-booking:active { transform: scale(0.99); }
+    .btn-booking:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .booking-info {
+      display: flex;
+      gap: 14px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    .booking-detail {
+      flex: 1;
+      min-width: 160px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+    }
+    .booking-detail-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+    .booking-detail-value {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      word-break: break-all;
+    }
+    .booking-status-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    .badge-draft     { background: #fef3c7; color: #92400e; }
+    .badge-submitted { background: #dcfce7; color: #15803d; }
+    .badge-unknown   { background: #f1f5f9; color: #64748b; }
+
+    .booking-log {
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: #f8fafc;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #64748b;
+      border: 1px solid #e2e8f0;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    .booking-log .log-line {
+      padding: 2px 0;
+    }
   </style>
 </head>
 <body>
@@ -331,6 +404,22 @@
     <div class="result-list" id="resultList"></div>
   </div>
 
+  <!-- ── Booking Creation ── -->
+  <div class="card">
+    <div class="card-title">Carrier Booking Creation</div>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label for="bookingAsn">ASN for Booking</label>
+        <input id="bookingAsn" type="text" placeholder="e.g. 49870000001275 or ASN1,ASN2,ASN3" />
+        <span class="field-hint">Multiple ASNs: comma-separated. Single booking will be created for all ASNs listed.</span>
+      </div>
+    </div>
+    <button class="btn-booking" id="btnBooking" onclick="createBooking()" style="margin-top:14px;">
+      ▶&nbsp; Create Booking
+    </button>
+    <div id="bookingResult" style="display:none; margin-top:14px;"></div>
+  </div>
+
 </main>
 
 <script>
@@ -346,7 +435,7 @@
   }
 
   function setAllButtons(disabled) {
-    document.querySelectorAll(".btn-msg, .btn-generate-all")
+    document.querySelectorAll(".btn-msg, .btn-generate-all, .btn-booking")
       .forEach(b => (b.disabled = disabled));
   }
 
@@ -369,6 +458,11 @@
     return ((Date.now() - rowTimers[id]) / 1000).toFixed(1) + "s";
   }
 
+  function elapsedFrom(startedAt) {
+    if (!startedAt) return "";
+    return ((Date.now() - startedAt) / 1000).toFixed(1) + "s";
+  }
+
   // ── Progress-aware row helpers ─────────────────────────────────────────────
 
   const STEPS = [
@@ -388,6 +482,47 @@
                `<span class="step ${cls}">${s.label}</span>`;
       }).join("") +
     `</div>`;
+  }
+
+  const BOOKING_STEPS = [
+    { key: "queued", label: "Queued" },
+    { key: "starting", label: "Starting browser" },
+    { key: "creating", label: "Creating booking" },
+    { key: "approving", label: "Approval flow" },
+    { key: "done", label: "Complete" },
+  ];
+
+  function bookingStepsHtml(activeKey) {
+    return `<div class="progress-steps">` +
+      BOOKING_STEPS.map((s, i) => {
+        const cls = s.key === activeKey ? "active"
+                  : BOOKING_STEPS.findIndex(x => x.key === activeKey) > i ? "done"
+                  : "queued";
+        return (i > 0 ? `<span class="step-arrow">›</span>` : "") +
+               `<span class="step ${cls}">${s.label}</span>`;
+      }).join("") +
+    `</div>`;
+  }
+
+  function bookingPhaseKey(startedAt) {
+    const elapsedMs = Date.now() - startedAt;
+    if (elapsedMs < 3000) return "starting";
+    if (elapsedMs < 45000) return "creating";
+    return "approving";
+  }
+
+  function renderBookingLoading(resultDiv, startedAt) {
+    const phaseKey = bookingPhaseKey(startedAt);
+    resultDiv.innerHTML =
+      `<div class="result-item loading" style="margin-top:14px">` +
+        `<div class="spinner"></div>` +
+        `<div class="result-body">` +
+          `<div class="result-label">Booking in progress</div>` +
+          bookingStepsHtml(phaseKey) +
+          `<div style="font-size:0.8rem; color:#64748b; margin-top:6px;">Creating booking for ASN…</div>` +
+          `<div class="result-remote" style="color:#6b7280;margin-top:6px">⏱ Running for ${elapsedFrom(startedAt)}</div>` +
+        `</div>` +
+      `</div>`;
   }
 
   function addRow(id, label, initialStep = "queued") {
@@ -513,6 +648,87 @@
     }
 
     setAllButtons(false);
+  }
+
+  // ── Booking Creation ─────────────────────────────────────────────────────
+
+  async function createBooking() {
+    const asn = document.getElementById("bookingAsn").value.trim();
+    if (!asn) { alert("Please enter at least one ASN"); return; }
+
+    const btn = document.getElementById("btnBooking");
+    const resultDiv = document.getElementById("bookingResult");
+    const startedAt = Date.now();
+    let progressInterval;
+    btn.disabled = true;
+    setAllButtons(true);
+
+    resultDiv.style.display = "block";
+    renderBookingLoading(resultDiv, startedAt);
+    progressInterval = setInterval(() => renderBookingLoading(resultDiv, startedAt), 1000);
+
+    try {
+      const res = await fetch("/api/booking/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asn }),
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        resultDiv.innerHTML =
+          `<div class="result-item success" style="margin-top:14px">` +
+            `<div class="result-icon">\u2705</div>` +
+            `<div class="result-body">` +
+              `<div class="result-label">Booking Created</div>` +
+              `<div class="progress-steps">` +
+                BOOKING_STEPS.map((s, i) =>
+                  (i > 0 ? `<span class="step-arrow">›</span>` : "") +
+                  `<span class="step done">${s.label}</span>`
+                ).join("") +
+              `</div>` +
+              `<div class="booking-info">` +
+                `<div class="booking-detail">` +
+                  `<div class="booking-detail-label">VB Reference</div>` +
+                  `<div class="booking-detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:700;color:#1f2937;margin-top:4px;">${escapeHtml(data.vbReference || "N/A")}</div>` +
+                `</div>` +
+              `</div>` +
+              `<div class="result-remote" style="color:#6b7280;margin-top:8px">⏱ Completed in ${elapsedFrom(startedAt)}</div>` +
+            `</div>` +
+          `</div>`;
+      } else {
+        resultDiv.innerHTML =
+          `<div class="result-item error" style="margin-top:14px">` +
+            `<div class="result-icon">\u274C</div>` +
+            `<div class="result-body">` +
+              `<div class="result-label">Booking Failed</div>` +
+              `<div class="result-error" style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(data.error || "Unknown error")}</div>` +
+              `<div class="result-remote" style="color:#6b7280;margin-top:8px">⏱ Failed after ${elapsedFrom(startedAt)}</div>` +
+            `</div>` +
+          `</div>`;
+      }
+    } catch (e) {
+      resultDiv.innerHTML =
+        `<div class="result-item error" style="margin-top:14px">` +
+          `<div class="result-icon">\u274C</div>` +
+          `<div class="result-body">` +
+            `<div class="result-label">Booking Error</div>` +
+            bookingStepsHtml(bookingPhaseKey(startedAt)) +
+            `<div class="result-error" style="margin-top:4px">${escapeHtml(e.message)}</div>` +
+            `<div class="result-remote" style="color:#6b7280;margin-top:8px">⏱ Failed after ${elapsedFrom(startedAt)}</div>` +
+          `</div>` +
+        `</div>`;
+    } finally {
+      clearInterval(progressInterval);
+      btn.disabled = false;
+      setAllButtons(false);
+    }
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement("div");
+    d.appendChild(document.createTextNode(str));
+    return d.innerHTML;
   }
 </script>
 

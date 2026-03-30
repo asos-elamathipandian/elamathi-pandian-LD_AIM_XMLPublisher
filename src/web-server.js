@@ -2,6 +2,8 @@
 
 const express = require("express");
 const path = require("path");
+const fs = require("fs");
+const { spawn } = require("child_process");
 const { writeVbkconFile } = require("./vbkcon");
 const { writeBulkStatusFile } = require("./bulk-status");
 const { writeCarrierShipmentFile } = require("./carrier-shipment");
@@ -249,7 +251,164 @@ app.post("/api/generate/all", async (req, res) => {
   res.json({ ok: Object.values(results).every((r) => r.ok), results });
 });
 
+// ── Booking Creation (Playwright) ─────────────────────────────────────────────
+
+const PLAYWRIGHT_PROJECT = path.resolve(
+  __dirname,
+  "..",
+  "..",
+  "asos-sct-aim-automation-tests",
+  "sct-warehouse-E2Open-test-automation"
+);
+const BOOKING_TIMEOUT_MS = Number(process.env.BOOKING_TIMEOUT_MS || 300000);
+
+// Booking request queue to prevent concurrent runs (which cause conflicts)
+let bookingInProgress = false;
+const bookingQueue = [];
+
+function processBookingQueue() {
+  if (bookingInProgress || bookingQueue.length === 0) return;
+  bookingInProgress = true;
+  const { asn, resolve } = bookingQueue.shift();
+  executeBooking(asn, resolve);
+}
+
+async function executeBooking(asn, resolve) {
+  const asnsForFile = asn
+    .split(",")
+    .map((a) => a.trim())
+    .filter(Boolean)
+    .join("\n");
+  const asnFilePath = path.join(PLAYWRIGHT_PROJECT, "tests", "asns.txt");
+
+  try {
+    fs.writeFileSync(asnFilePath, asnsForFile, "utf-8");
+  } catch (e) {
+    bookingInProgress = false;
+    processBookingQueue();
+    return resolve({ ok: false, error: `Failed to write ASN file: ${e.message}` });
+  }
+
+  // Spawn Playwright test with optimizations
+  const args = [
+    "playwright",
+    "test",
+    "tests/MultiASNbookingPassed.spec.js",
+    "--reporter=line",
+    "--workers=1",
+  ];
+  const env = { ...process.env, CI: "true", BOOKING_FAST_MODE: process.env.BOOKING_FAST_MODE || "false" };
+
+  let child;
+  try {
+    child = process.platform === "win32"
+      ? spawn("cmd.exe", ["/d", "/s", "/c", `npx ${args.join(" ")}`], {
+          cwd: PLAYWRIGHT_PROJECT,
+          shell: false,
+          env,
+        })
+      : spawn("npx", args, {
+          cwd: PLAYWRIGHT_PROJECT,
+          shell: false,
+          env,
+        });
+  } catch (spawnErr) {
+    bookingInProgress = false;
+    processBookingQueue();
+    return resolve({ ok: false, error: `Failed to start Playwright: ${spawnErr.message}` });
+  }
+
+  let stdout = "";
+  let stderr = "";
+  let settled = false;
+  const finish = (payload) => {
+    if (settled) return;
+    settled = true;
+    bookingInProgress = false;
+    processBookingQueue();
+    resolve(payload);
+  };
+
+  const timeoutHandle = setTimeout(() => {
+    try {
+      child.kill("SIGKILL");
+    } catch (_) {
+      // Ignore kill errors and return timeout response.
+    }
+    finish({
+      ok: false,
+      error: `Booking timed out after ${Math.floor(BOOKING_TIMEOUT_MS / 1000)}s. Please retry.`,
+      passed: false,
+    });
+  }, BOOKING_TIMEOUT_MS);
+
+  child.stdout.on("data", (data) => { stdout += data.toString(); });
+  child.stderr.on("data", (data) => { stderr += data.toString(); });
+
+  child.on("close", (code) => {
+    clearTimeout(timeoutHandle);
+    // Parse VB reference from both JSON and plain text output
+    let vbReference = null;
+    let bookingStatus = null;
+    const merged = `${stdout}\n${stderr}`;
+    const vbMatch = merged.match(/VB Reference:\s*(VB-\d+)/i);
+    const statusMatch = merged.match(/Booking Status:\s*(\w+)/i);
+    vbReference = vbMatch ? vbMatch[1] : null;
+    bookingStatus = statusMatch ? statusMatch[1] : null;
+
+    if (code === 0) {
+      finish({
+        ok: true,
+        vbReference,
+        bookingStatus,
+        passed: true,
+      });
+    } else {
+      const output = merged.trim();
+      const errorLines = output.split("\n").filter(
+        (l) => /error|fail|timeout|✕/i.test(l)
+      );
+      finish({
+        ok: false,
+        error: errorLines.length ? errorLines.slice(0, 5).join("\n") : "Test failed (exit code " + code + ")",
+        vbReference,
+        bookingStatus,
+        passed: false,
+      });
+    }
+  });
+
+  child.on("error", (e) => {
+    clearTimeout(timeoutHandle);
+    finish({ ok: false, error: `Failed to run Playwright: ${e.message}` });
+  });
+}
+
+app.post("/api/booking/create", async (req, res) => {
+  const err = validate(req.body, ["asn"]);
+  if (err) return res.status(400).json({ ok: false, error: err });
+
+  const { asn } = req.body;
+
+  // Queue the booking request
+  const resultPromise = new Promise((resolve) => {
+    bookingQueue.push({ asn, resolve });
+    processBookingQueue();
+  });
+
+  const result = await resultPromise;
+  res.json(result);
+});
+
 // ── Start ─────────────────────────────────────────────────────────────────────
+
+// Safety net: log unhandled errors without crashing the server
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err.message);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
 
 app.listen(PORT, () => {
   console.log(`\nXML Generator UI  →  http://localhost:${PORT}\n`);
