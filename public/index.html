@@ -316,6 +316,64 @@
     .booking-log .log-line {
       padding: 2px 0;
     }
+
+    /* ── ASN Lookup ── */
+    .btn-lookup {
+      width: 100%;
+      padding: 13px;
+      background: #0ea5e9;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.97rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-lookup:hover { background: #0284c7; }
+    .btn-lookup:active { transform: scale(0.99); }
+    .btn-lookup:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .lookup-result {
+      margin-top: 14px;
+    }
+    .lookup-found {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      padding: 14px 18px;
+      border-radius: 8px;
+      background: #f0fdf4;
+      border-left: 4px solid #22c55e;
+    }
+    .lookup-not-found {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      padding: 14px 18px;
+      border-radius: 8px;
+      background: #fefce8;
+      border-left: 4px solid #eab308;
+    }
+    .lookup-error {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      padding: 14px 18px;
+      border-radius: 8px;
+      background: #fef2f2;
+      border-left: 4px solid #ef4444;
+    }
+    .lookup-loading {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      padding: 14px 18px;
+      border-radius: 8px;
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+    }
   </style>
 </head>
 <body>
@@ -404,6 +462,22 @@
     <div class="result-list" id="resultList"></div>
   </div>
 
+  <!-- ── ASN Lookup in SCC ── -->
+  <div class="card">
+    <div class="card-title">ASN Lookup in E2Open SCC</div>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label for="lookupAsn">ASN</label>
+        <input id="lookupAsn" type="text" placeholder="e.g. 49870000001275" />
+        <span class="field-hint">Enter an ASN to check if it exists in E2Open SCC (ASOS Order Search).</span>
+      </div>
+    </div>
+    <button class="btn-lookup" id="btnLookup" onclick="lookupAsn()" style="margin-top:14px;">
+      &#128269;&nbsp; Check ASN in SCC
+    </button>
+    <div id="lookupResult" class="lookup-result" style="display:none;"></div>
+  </div>
+
   <!-- ── Booking Creation ── -->
   <div class="card">
     <div class="card-title">Carrier Booking Creation</div>
@@ -435,7 +509,7 @@
   }
 
   function setAllButtons(disabled) {
-    document.querySelectorAll(".btn-msg, .btn-generate-all, .btn-booking")
+    document.querySelectorAll(".btn-msg, .btn-generate-all, .btn-booking, .btn-lookup")
       .forEach(b => (b.disabled = disabled));
   }
 
@@ -714,6 +788,124 @@
           `<div class="result-body">` +
             `<div class="result-label">Booking Error</div>` +
             bookingStepsHtml(bookingPhaseKey(startedAt)) +
+            `<div class="result-error" style="margin-top:4px">${escapeHtml(e.message)}</div>` +
+            `<div class="result-remote" style="color:#6b7280;margin-top:8px">⏱ Failed after ${elapsedFrom(startedAt)}</div>` +
+          `</div>` +
+        `</div>`;
+    } finally {
+      clearInterval(progressInterval);
+      btn.disabled = false;
+      setAllButtons(false);
+    }
+  }
+
+  // ── ASN Lookup in SCC ──────────────────────────────────────────────────────
+
+  const LOOKUP_STEPS = [
+    { key: "queued", label: "Queued" },
+    { key: "logging-in", label: "Logging in" },
+    { key: "searching", label: "Searching SCC" },
+    { key: "done", label: "Complete" },
+  ];
+
+  function lookupStepsHtml(activeKey) {
+    return `<div class="progress-steps">` +
+      LOOKUP_STEPS.map((s, i) => {
+        const cls = s.key === activeKey ? "active"
+                  : LOOKUP_STEPS.findIndex(x => x.key === activeKey) > i ? "done"
+                  : "queued";
+        return (i > 0 ? `<span class="step-arrow">›</span>` : "") +
+               `<span class="step ${cls}">${s.label}</span>`;
+      }).join("") +
+    `</div>`;
+  }
+
+  function lookupPhaseKey(startedAt) {
+    const elapsedMs = Date.now() - startedAt;
+    if (elapsedMs < 5000) return "logging-in";
+    return "searching";
+  }
+
+  function renderLookupLoading(resultDiv, startedAt) {
+    const phaseKey = lookupPhaseKey(startedAt);
+    resultDiv.innerHTML =
+      `<div class="lookup-loading">` +
+        `<div class="spinner"></div>` +
+        `<div class="result-body">` +
+          `<div class="result-label">ASN Lookup in progress</div>` +
+          lookupStepsHtml(phaseKey) +
+          `<div style="font-size:0.8rem; color:#64748b; margin-top:6px;">Checking ASN in E2Open SCC Order Search…</div>` +
+          `<div class="result-remote" style="color:#6b7280;margin-top:6px">⏱ Running for ${elapsedFrom(startedAt)}</div>` +
+        `</div>` +
+      `</div>`;
+  }
+
+  async function lookupAsn() {
+    const asn = document.getElementById("lookupAsn").value.trim();
+    if (!asn) { alert("Please enter an ASN"); return; }
+
+    const btn = document.getElementById("btnLookup");
+    const resultDiv = document.getElementById("lookupResult");
+    const startedAt = Date.now();
+    let progressInterval;
+    btn.disabled = true;
+    setAllButtons(true);
+
+    resultDiv.style.display = "block";
+    renderLookupLoading(resultDiv, startedAt);
+    progressInterval = setInterval(() => renderLookupLoading(resultDiv, startedAt), 1000);
+
+    try {
+      const res = await fetch("/api/asn-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asn }),
+      });
+      const data = await res.json();
+
+      if (data.ok && data.found) {
+        resultDiv.innerHTML =
+          `<div class="lookup-found">` +
+            `<div class="result-icon">✅</div>` +
+            `<div class="result-body">` +
+              `<div class="result-label">ASN Found in SCC</div>` +
+              lookupStepsHtml("done") +
+              `<div style="font-size:0.88rem; color:#15803d; font-weight:600; margin-top:8px;">` +
+                `ASN <strong style="font-family:monospace;">${escapeHtml(asn)}</strong> was found in E2Open SCC Order Search.` +
+              `</div>` +
+              `<div class="result-remote" style="color:#6b7280;margin-top:6px">⏱ Completed in ${elapsedFrom(startedAt)}</div>` +
+            `</div>` +
+          `</div>`;
+      } else if (data.ok && !data.found) {
+        resultDiv.innerHTML =
+          `<div class="lookup-not-found">` +
+            `<div class="result-icon">⚠️</div>` +
+            `<div class="result-body">` +
+              `<div class="result-label">ASN Not Found in SCC</div>` +
+              lookupStepsHtml("done") +
+              `<div style="font-size:0.88rem; color:#92400e; font-weight:600; margin-top:8px;">` +
+                `ASN <strong style="font-family:monospace;">${escapeHtml(asn)}</strong> was not found in E2Open SCC Order Search.` +
+              `</div>` +
+              `<div class="result-remote" style="color:#6b7280;margin-top:6px">⏱ Completed in ${elapsedFrom(startedAt)}</div>` +
+            `</div>` +
+          `</div>`;
+      } else {
+        resultDiv.innerHTML =
+          `<div class="lookup-error">` +
+            `<div class="result-icon">❌</div>` +
+            `<div class="result-body">` +
+              `<div class="result-label">ASN Lookup Failed</div>` +
+              `<div class="result-error" style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(data.error || "Unknown error")}</div>` +
+              `<div class="result-remote" style="color:#6b7280;margin-top:8px">⏱ Failed after ${elapsedFrom(startedAt)}</div>` +
+            `</div>` +
+          `</div>`;
+      }
+    } catch (e) {
+      resultDiv.innerHTML =
+        `<div class="lookup-error">` +
+          `<div class="result-icon">❌</div>` +
+          `<div class="result-body">` +
+            `<div class="result-label">ASN Lookup Error</div>` +
             `<div class="result-error" style="margin-top:4px">${escapeHtml(e.message)}</div>` +
             `<div class="result-remote" style="color:#6b7280;margin-top:8px">⏱ Failed after ${elapsedFrom(startedAt)}</div>` +
           `</div>` +

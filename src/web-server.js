@@ -251,7 +251,7 @@ app.post("/api/generate/all", async (req, res) => {
   res.json({ ok: Object.values(results).every((r) => r.ok), results });
 });
 
-// ── Booking Creation (Playwright) ─────────────────────────────────────────────
+// ── ASN Lookup in SCC (Playwright) ────────────────────────────────────────────
 
 const PLAYWRIGHT_PROJECT = path.resolve(
   __dirname,
@@ -260,6 +260,98 @@ const PLAYWRIGHT_PROJECT = path.resolve(
   "asos-sct-aim-automation-tests",
   "sct-warehouse-E2Open-test-automation"
 );
+
+const ASN_LOOKUP_TIMEOUT_MS = Number(process.env.ASN_LOOKUP_TIMEOUT_MS || 180000);
+
+app.post("/api/asn-lookup", async (req, res) => {
+  const err = validate(req.body, ["asn"]);
+  if (err) return res.status(400).json({ ok: false, error: err });
+
+  const { asn } = req.body;
+
+  const args = [
+    "playwright",
+    "test",
+    "tests/ASNLookup.spec.js",
+    "--reporter=line",
+    "--workers=1",
+  ];
+  const env = { ...process.env, CI: "true", ASN_LOOKUP_VALUE: asn };
+
+  try {
+    const result = await new Promise((resolve) => {
+      let child;
+      try {
+        child = process.platform === "win32"
+          ? spawn("cmd.exe", ["/d", "/s", "/c", `npx ${args.join(" ")}`], {
+              cwd: PLAYWRIGHT_PROJECT,
+              shell: false,
+              env,
+            })
+          : spawn("npx", args, {
+              cwd: PLAYWRIGHT_PROJECT,
+              shell: false,
+              env,
+            });
+      } catch (spawnErr) {
+        return resolve({ ok: false, error: `Failed to start Playwright: ${spawnErr.message}` });
+      }
+
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+      const finish = (payload) => {
+        if (settled) return;
+        settled = true;
+        resolve(payload);
+      };
+
+      const timeoutHandle = setTimeout(() => {
+        try { child.kill("SIGKILL"); } catch (_) {}
+        finish({ ok: false, error: `ASN lookup timed out after ${Math.floor(ASN_LOOKUP_TIMEOUT_MS / 1000)}s` });
+      }, ASN_LOOKUP_TIMEOUT_MS);
+
+      child.stdout.on("data", (data) => { stdout += data.toString(); });
+      child.stderr.on("data", (data) => { stderr += data.toString(); });
+
+      child.on("close", (code) => {
+        clearTimeout(timeoutHandle);
+        const merged = `${stdout}\n${stderr}`;
+        const resultMatch = merged.match(/ASN_LOOKUP_RESULT:\s*(FOUND|NOT_FOUND)/);
+        const found = resultMatch ? resultMatch[1] === "FOUND" : false;
+
+        if (code === 0) {
+          finish({ ok: true, found, asn });
+        } else {
+          // Even if test "failed", check if we got a lookup result
+          if (resultMatch) {
+            finish({ ok: true, found, asn });
+          } else {
+            const errorLines = merged.split("\n").filter(
+              (l) => /error|fail|timeout|✕/i.test(l)
+            );
+            finish({
+              ok: false,
+              error: errorLines.length ? errorLines.slice(0, 5).join("\n") : "Lookup failed (exit code " + code + ")",
+            });
+          }
+        }
+      });
+
+      child.on("error", (e) => {
+        clearTimeout(timeoutHandle);
+        finish({ ok: false, error: `Failed to run Playwright: ${e.message}` });
+      });
+    });
+
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Booking Creation (Playwright) ─────────────────────────────────────────────
+
 const BOOKING_TIMEOUT_MS = Number(process.env.BOOKING_TIMEOUT_MS || 300000);
 
 // Booking request queue to prevent concurrent runs (which cause conflicts)
