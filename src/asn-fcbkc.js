@@ -35,15 +35,15 @@ function formatFileTimestamp(date) {
   ].join("");
 }
 
-function addMinutes(date, minutes) {
-  return new Date(date.getTime() + minutes * 60 * 1000);
+function addSeconds(date, seconds) {
+  return new Date(date.getTime() + seconds * 1000);
 }
 
 function buildAsnFcbkcXml({ asn, now }) {
   const ctrlNumber = generateCtrlNumber();
   const transmissionTimestamp = formatTimestamp(now);
   // Resource comment: Date can be current system time + 1 min
-  const fcbkcDate = formatTimestamp(addMinutes(now, 1));
+  const fcbkcDate = formatTimestamp(addSeconds(now, 2));
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <XMLBundle xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">

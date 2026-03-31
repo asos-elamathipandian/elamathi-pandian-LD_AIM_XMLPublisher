@@ -39,10 +39,8 @@ function formatFileTimestamp(date) {
   ].join("");
 }
 
-function addDays(date, days) {
-  const output = new Date(date.getTime());
-  output.setUTCDate(output.getUTCDate() + days);
-  return output;
+function addSeconds(date, seconds) {
+  return new Date(date.getTime() + seconds * 1000);
 }
 
 function formatDateTime(date) {
@@ -60,7 +58,7 @@ function formatDateTime(date) {
 function buildBulkStatusXml({ asn, now = new Date() }) {
   const ctrlNumber = formatCtrlNumber(now);
   const timestamp = formatTimestamp(now);
-  const handoverDate = formatDateTime(addDays(now, 7));
+  const handoverDate = formatDateTime(addSeconds(now, 3));
 
   return `<XMLBundle>\n<XMLTransmission CtrlNumber="${ctrlNumber}" Receiver="E2ASOS" Sender="DAVIESTN" Timestamp="${timestamp}">\n<XMLGroup CtrlNumber="${ctrlNumber}" GroupType="BP" IncludedMessages="1">\n<XMLTransaction CtrlNumber="${asn}" TransactionType="BPM-BST">\n<BpMessage MessageType="BST">\n<Mode>30</Mode>\n<Status>\n<Date DateTypeCd="HNDOVR" TimeZone="UTC">${handoverDate}</Date>\n<Location LocTypeCd="EA">\n<LocationID Qualifier="UN">TRIST</LocationID>\n</Location>\n</Status>\n<Document DocType="SHIP" Key="${asn}">\n<DocumentID>${asn}</DocumentID>\n</Document>\n</BpMessage>\n</XMLTransaction>\n</XMLGroup>\n</XMLTransmission>\n</XMLBundle>\n`;
 }

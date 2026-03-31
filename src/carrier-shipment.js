@@ -87,8 +87,8 @@ function buildCarrierShipmentXml({ asn, po, sku, skuQty, carrier = "DT", now, se
   const transmissionTimestamp = formatTimestamp(now);
   const csi = `AEE00000${sequence}`;
   const catn = `ATJEE00000${sequence}`;
-  const doDate = formatDateYYYYMMDD(addDays(now, 8));
-  const manDate = formatDateYYYYMMDD(addDays(now, 9));
+  const doDate = formatDateYYYYMMDD(now);
+  const manDate = formatDateYYYYMMDD(now);
   const eqOrFpKey = `AH${sequence}AE / A${sequence}BE`;
 
   // Parse comma-separated SKUs and quantities

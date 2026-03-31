@@ -35,15 +35,15 @@ function formatFileTimestamp(date) {
   ].join("");
 }
 
-function addMinutes(date, minutes) {
-  return new Date(date.getTime() + minutes * 60 * 1000);
+function addSeconds(date, seconds) {
+  return new Date(date.getTime() + seconds * 1000);
 }
 
 function buildAsnPadexXml({ asn, po, sku, skuQty, now }) {
   const ctrlNumber = generateCtrlNumber();
   const transmissionTimestamp = formatTimestamp(now);
   // Resource comment: Date can be current system time + 1 min
-  const pdxDate = formatTimestamp(addMinutes(now, 1));
+  const pdxDate = formatTimestamp(addSeconds(now, 5));
 
   // Parse comma-separated SKUs and quantities
   const skus = sku.split(",").map(s => s.trim());
