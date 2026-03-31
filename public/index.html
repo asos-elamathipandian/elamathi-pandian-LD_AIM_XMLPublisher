@@ -385,9 +385,41 @@
 
 <main class="container">
 
-  <!-- ── Input Parameters ── -->
+  <!-- ── ASN Lookup in SCC ── -->
   <div class="card">
-    <div class="card-title">Input Parameters</div>
+    <div class="card-title">ASN Lookup in E2Open SCC</div>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label for="lookupAsn">ASN</label>
+        <input id="lookupAsn" type="text" placeholder="e.g. 49870000001275" />
+        <span class="field-hint">Enter an ASN to check if it exists in E2Open SCC (ASOS Order Search).</span>
+      </div>
+    </div>
+    <button class="btn-lookup" id="btnLookup" onclick="lookupAsn()" style="margin-top:14px;">
+      &#128269;&nbsp; Check ASN in SCC
+    </button>
+    <div id="lookupResult" class="lookup-result" style="display:none;"></div>
+  </div>
+
+  <!-- ── Booking Creation ── -->
+  <div class="card">
+    <div class="card-title">Carrier Booking Creation</div>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label for="bookingAsn">ASN for Booking</label>
+        <input id="bookingAsn" type="text" placeholder="e.g. 49870000001275 or ASN1,ASN2,ASN3" />
+        <span class="field-hint">Multiple ASNs: comma-separated. Single booking will be created for all ASNs listed.</span>
+      </div>
+    </div>
+    <button class="btn-booking" id="btnBooking" onclick="createBooking()" style="margin-top:14px;">
+      ▶&nbsp; Create Booking
+    </button>
+    <div id="bookingResult" style="display:none; margin-top:14px;"></div>
+  </div>
+
+  <!-- ── Carrier & WMS Events ── -->
+  <div class="card">
+    <div class="card-title">Carrier &amp; WMS Events</div>
     <div class="form-grid">
       <div class="form-group">
         <label for="asn">ASN</label>
@@ -420,35 +452,36 @@
         </select>
       </div>
     </div>
-  </div>
 
-  <!-- ── Generate Buttons ── -->
-  <div class="card">
-    <div class="card-title">Generate Messages</div>
-
-    <button class="btn-generate-all" id="btnAll" onclick="generateAll()">
+    <button class="btn-generate-all" id="btnAll" onclick="generateAll()" style="margin-top:18px;">
       &#9654;&nbsp; Generate All 6 Messages
+      <span class="btn-label-sub">Requires: ASN, PO, SKU, SKU Qty, ACE</span>
     </button>
 
     <div class="individual-buttons">
       <button class="btn-msg btn-vbkcon" onclick="generateOne('vbkcon', 'VBKCON')">
         VBKCON
+        <span class="btn-label-sub">Requires: ACE</span>
       </button>
       <button class="btn-msg btn-bst" onclick="generateOne('bst', 'Bulk Status')">
-        Bulk Status
-        <span class="btn-label-sub">BST</span>
+        Bulk Status (BST)
+        <span class="btn-label-sub">Requires: ASN</span>
       </button>
       <button class="btn-msg btn-shipment" onclick="generateOne('shipment', 'Carrier Shipment')">
         Carrier Shipment
+        <span class="btn-label-sub">Requires: ASN, PO, SKU, SKU Qty</span>
       </button>
       <button class="btn-msg btn-fcbkc" onclick="generateOne('asn-fcbkc', 'ASN FCBKC')">
         ASN FCBKC
+        <span class="btn-label-sub">Requires: ASN</span>
       </button>
       <button class="btn-msg btn-rcv" onclick="generateOne('asn-rcv', 'ASN RCV')">
         ASN RCV
+        <span class="btn-label-sub">Requires: ASN</span>
       </button>
       <button class="btn-msg btn-padex" onclick="generateOne('asn-padex', 'ASN PADEX')">
         ASN PADEX
+        <span class="btn-label-sub">Requires: ASN, PO, SKU, SKU Qty</span>
       </button>
     </div>
   </div>
@@ -460,38 +493,6 @@
       <button class="btn-clear" onclick="clearResults()">Clear</button>
     </div>
     <div class="result-list" id="resultList"></div>
-  </div>
-
-  <!-- ── ASN Lookup in SCC ── -->
-  <div class="card">
-    <div class="card-title">ASN Lookup in E2Open SCC</div>
-    <div class="form-grid">
-      <div class="form-group" style="grid-column: 1 / -1;">
-        <label for="lookupAsn">ASN</label>
-        <input id="lookupAsn" type="text" placeholder="e.g. 49870000001275" />
-        <span class="field-hint">Enter an ASN to check if it exists in E2Open SCC (ASOS Order Search).</span>
-      </div>
-    </div>
-    <button class="btn-lookup" id="btnLookup" onclick="lookupAsn()" style="margin-top:14px;">
-      &#128269;&nbsp; Check ASN in SCC
-    </button>
-    <div id="lookupResult" class="lookup-result" style="display:none;"></div>
-  </div>
-
-  <!-- ── Booking Creation ── -->
-  <div class="card">
-    <div class="card-title">Carrier Booking Creation</div>
-    <div class="form-grid">
-      <div class="form-group" style="grid-column: 1 / -1;">
-        <label for="bookingAsn">ASN for Booking</label>
-        <input id="bookingAsn" type="text" placeholder="e.g. 49870000001275 or ASN1,ASN2,ASN3" />
-        <span class="field-hint">Multiple ASNs: comma-separated. Single booking will be created for all ASNs listed.</span>
-      </div>
-    </div>
-    <button class="btn-booking" id="btnBooking" onclick="createBooking()" style="margin-top:14px;">
-      ▶&nbsp; Create Booking
-    </button>
-    <div id="bookingResult" style="display:none; margin-top:14px;"></div>
   </div>
 
 </main>
