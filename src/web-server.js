@@ -317,6 +317,19 @@ app.post("/api/asn-lookup", async (req, res) => {
       child.on("close", (code) => {
         clearTimeout(timeoutHandle);
         const merged = `${stdout}\n${stderr}`;
+
+        // Try new structured JSON output first
+        const jsonMatch = merged.match(/ASN_LOOKUP_RESULTS:\s*(\{.*\})/);
+        if (jsonMatch) {
+          try {
+            const results = JSON.parse(jsonMatch[1]);
+            return finish({ ok: true, ...results, asn });
+          } catch {
+            // Fall through to legacy parsing
+          }
+        }
+
+        // Legacy single-ASN output
         const resultMatch = merged.match(/ASN_LOOKUP_RESULT:\s*(FOUND|NOT_FOUND)/);
         const found = resultMatch ? resultMatch[1] === "FOUND" : false;
 
