@@ -23,7 +23,23 @@
       gap: 12px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     }
-    header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: 0.02em; }
+    header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: 0.02em; flex: 1; }
+    .btn-reset-all {
+      background: none;
+      border: 1.5px solid rgba(255,255,255,0.3);
+      color: white;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: background 0.2s, border-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-reset-all:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.6); }
     header .badge {
       background: #e94560;
       color: white;
@@ -483,6 +499,7 @@
 
 <header>
   <h1>ASOS-E2Open ASN Fulfilment ToolKit : Carrier Booking, Carrier &amp; WMS Milestones</h1>
+  <button class="btn-reset-all" onclick="resetAll()" title="Reset all inputs, results and logs">&#8635; Reset</button>
 </header>
 
 <main class="container">
@@ -756,6 +773,44 @@
       .forEach(b => (b.disabled = disabled));
   }
 
+  function resetUIState() {
+    setAllButtons(false);
+    document.getElementById("btnLookup").disabled = false;
+    hideCancelBtn("cancelLookup");
+    hideCancelBtn("cancelBooking");
+    hideCancelBtn("cancelFullFlow");
+    hideCancelBtn("cancelEvents");
+    stopProgressPolling();
+  }
+
+  function resetAll() {
+    // Reset UI state (buttons, cancel, polling)
+    resetUIState();
+
+    // Clear all input fields
+    ["lookupAsn", "bookingAsn", "fullFlowAsn", "asn", "po", "sku", "ace"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+    const skuQty = document.getElementById("skuQty");
+    if (skuQty) skuQty.value = "1";
+    const carrier = document.getElementById("carrier");
+    if (carrier) carrier.selectedIndex = 0;
+
+    // Clear all result areas
+    clearResults();
+    ["lookupResult", "bookingResult", "fullFlowResult"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.style.display = "none"; el.innerHTML = ""; }
+    });
+
+    // Clear all live logs
+    ["liveLogLookup", "liveLogBooking", "liveLogFullFlow"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.style.display = "none"; el.innerHTML = ""; }
+    });
+  }
+
   function showResults() {
     document.getElementById("results").style.display = "block";
   }
@@ -926,8 +981,7 @@
       if (e.name !== "AbortError") updateRow(rowId, label, { ok: false, error: e.message });
     } finally {
       delete abortControllers.events;
-      hideCancelBtn("cancelEvents");
-      setAllButtons(false);
+      resetUIState();
     }
   }
 
@@ -974,8 +1028,7 @@
     }
 
     delete abortControllers.events;
-    hideCancelBtn("cancelEvents");
-    setAllButtons(false);
+    resetUIState();
   }
 
   // ── Booking Creation (Two Modes) ───────────────────────────────────────
@@ -1160,9 +1213,7 @@
     } finally {
       clearInterval(progressInterval);
       delete abortControllers.booking;
-      stopProgressPolling();
-      hideCancelBtn("cancelBooking");
-      setAllButtons(false);
+      resetUIState();
     }
   }
 
@@ -1369,10 +1420,7 @@
     } finally {
       clearInterval(progressInterval);
       delete abortControllers.lookup;
-      stopProgressPolling();
-      hideCancelBtn("cancelLookup");
-      btn.disabled = false;
-      setAllButtons(false);
+      resetUIState();
     }
   }
 
@@ -1550,9 +1598,7 @@
     } finally {
       clearInterval(progressInterval);
       delete abortControllers.fullFlow;
-      stopProgressPolling();
-      hideCancelBtn("cancelFullFlow");
-      setAllButtons(false);
+      resetUIState();
     }
   }
 </script>
