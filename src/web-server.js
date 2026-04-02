@@ -42,6 +42,110 @@ function validate(body, fields) {
   return missing.length ? `Missing required fields: ${missing.join(", ")}` : null;
 }
 
+// ── Live progress log ─────────────────────────────────────────────────────────
+
+let progressLog = [];
+
+function clearProgress() {
+  progressLog = [];
+}
+
+function addProgress(message) {
+  const entry = { ts: new Date().toLocaleTimeString(), message };
+  progressLog.push(entry);
+  console.log(`[PROGRESS] ${entry.ts} — ${message}`);
+}
+
+// Keywords to pick up from Playwright stdout/stderr as progress updates
+const PROGRESS_PATTERNS = [
+  // Explicit progress marker (tests can use: console.log("PROGRESS: message"))
+  { re: /PROGRESS:\s*(.+)/i, extract: (m) => m[1].trim() },
+
+  // Actual prefixes used by Playwright specs
+  { re: /\[asn-lookup\]\s*(.+)/i, extract: (m) => m[1].trim() },
+  { re: /\[booking-step\]\s*(.+)/i, extract: (m) => m[1].trim() },
+  { re: /\[full-flow\]\s*(.+)/i, extract: (m) => m[1].trim() },
+
+  // Key data markers from specs
+  { re: /ASN_LOOKUP_RESULTS?:\s*(.+)/i, extract: (m) => "ASN lookup complete" },
+  { re: /FULL_FLOW_RESULT:\s*/i, extract: () => "Full flow result received" },
+  { re: /VB Reference:\s*(VB-\S+)/i, extract: (m) => `VB Reference: ${m[1]}` },
+  { re: /Booking Status:\s*(\w+)/i, extract: (m) => `Booking status: ${m[1]}` },
+  { re: /Booking completed for ASN:\s*(.+)/i, extract: (m) => `Booking completed for ASN: ${m[1].trim()}` },
+  { re: /Multi-ASN booking completed/i, extract: () => "Multi-ASN booking completed" },
+  { re: /Step\s*(\d+)/i, extract: (m) => `Step ${m[1]} in progress…` },
+
+  // Common Playwright / browser actions
+  { re: /navigating to|goto\(|page\.goto/i, extract: () => "Navigating to portal…" },
+  { re: /logging in|login|signed in|authenticated|credentials/i, extract: () => "Logging in to SCC…" },
+  { re: /searching|order search|search.*page/i, extract: () => "Searching records…" },
+  { re: /found (\d+) record/i, extract: (m) => `Found ${m[1]} record(s)` },
+  { re: /creating.*booking|create.*booking|new booking/i, extract: () => "Creating new booking…" },
+  { re: /draft.*created|booking.*draft/i, extract: () => "Draft VB created" },
+  { re: /editing|edit.*booking/i, extract: () => "Editing VB details…" },
+  { re: /adding.*asn|asn.*added/i, extract: () => "Adding ASN to booking…" },
+  { re: /submitting|submit.*booking/i, extract: () => "Submitting VB…" },
+  { re: /approv/i, extract: () => "Processing approval…" },
+  { re: /approved/i, extract: () => "VB approved ✓" },
+
+  // Playwright test runner output
+  { re: /(\d+) passed/i, extract: (m) => `${m[1]} test(s) passed ✓` },
+  { re: /(\d+) failed/i, extract: (m) => `${m[1]} test(s) failed ✕` },
+  { re: /timed?\s*out/i, extract: () => "Operation timed out" },
+];
+
+// Noise lines to skip (Playwright runner boilerplate)
+const NOISE_PATTERNS = [
+  /^\s*$/,
+  /^Running \d+ test/i,
+  /^npx playwright/i,
+  /^Using.*config/i,
+  /^\s*at\s+/,           // stack traces
+  /^node_modules/,
+  /^\d+\s*\|/,           // source code lines in error output
+  /^=+$/,                // separator lines
+];
+
+function parseStdoutForProgress(data) {
+  const text = data.toString();
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    // Skip noise
+    if (NOISE_PATTERNS.some((p) => p.test(line))) continue;
+
+    let matched = false;
+    for (const pat of PROGRESS_PATTERNS) {
+      const m = line.match(pat.re);
+      if (m) {
+        const msg = pat.extract(m);
+        // Avoid duplicate consecutive messages
+        if (progressLog.length === 0 || progressLog[progressLog.length - 1].message !== msg) {
+          addProgress(msg);
+        }
+        matched = true;
+        break;
+      }
+    }
+
+    // If no pattern matched but line contains a console.log from the spec, show it raw
+    if (!matched && line.length > 5 && line.length < 200) {
+      // Only show lines that look like intentional log output (contains letters, not just symbols)
+      if (/[a-zA-Z]{3,}/.test(line) && !/^[\s\d.:]+$/.test(line)) {
+        const msg = line.substring(0, 150);
+        if (progressLog.length === 0 || progressLog[progressLog.length - 1].message !== msg) {
+          addProgress(msg);
+        }
+      }
+    }
+  }
+}
+
+app.get("/api/progress", (req, res) => {
+  const since = parseInt(req.query.since, 10) || 0;
+  const entries = progressLog.slice(since);
+  res.json({ entries, total: progressLog.length });
+});
+
 // ── Individual endpoints ──────────────────────────────────────────────────────
 
 app.post("/api/generate/vbkcon", async (req, res) => {
@@ -270,6 +374,9 @@ app.post("/api/asn-lookup", async (req, res) => {
   const { asn } = req.body;
   const lookupResultsFile = path.join(PLAYWRIGHT_PROJECT, "asn-lookup-results.json");
 
+  clearProgress();
+  addProgress(`Starting ASN Lookup for: ${asn}`);
+
   // Clean up previous results file
   try { fs.unlinkSync(lookupResultsFile); } catch (_) {}
 
@@ -301,6 +408,7 @@ app.post("/api/asn-lookup", async (req, res) => {
         return resolve({ ok: false, error: `Failed to start Playwright: ${spawnErr.message}` });
       }
       setActiveChild(child, "ASN Lookup");
+      addProgress("Launching browser for ASN Lookup…");
 
       let stdout = "";
       let stderr = "";
@@ -316,11 +424,12 @@ app.post("/api/asn-lookup", async (req, res) => {
         finish({ ok: false, error: `ASN lookup timed out after ${Math.floor(ASN_LOOKUP_TIMEOUT_MS / 1000)}s` });
       }, ASN_LOOKUP_TIMEOUT_MS);
 
-      child.stdout.on("data", (data) => { stdout += data.toString(); });
-      child.stderr.on("data", (data) => { stderr += data.toString(); });
+      child.stdout.on("data", (data) => { stdout += data.toString(); parseStdoutForProgress(data); });
+      child.stderr.on("data", (data) => { stderr += data.toString(); parseStdoutForProgress(data); });
 
       child.on("close", (code) => {
         clearTimeout(timeoutHandle);
+        addProgress("ASN Lookup completed");
         const merged = `${stdout}\n${stderr}`;
 
         // Try reading the structured results file first (most reliable)
@@ -423,6 +532,9 @@ async function executeBooking(asn, specFile, resolve) {
   const asnFilePath = path.join(PLAYWRIGHT_PROJECT, "tests", "asns.txt");
   const resultsFilePath = path.join(PLAYWRIGHT_PROJECT, "booking-results.json");
 
+  clearProgress();
+  addProgress(`Starting Booking for ASN(s): ${asnsForFile}`);
+
   // Clean up any previous results file
   try { fs.unlinkSync(resultsFilePath); } catch (_) {}
 
@@ -433,6 +545,7 @@ async function executeBooking(asn, specFile, resolve) {
     processBookingQueue();
     return resolve({ ok: false, error: `Failed to write ASN file: ${e.message}` });
   }
+  addProgress("ASN file written, launching browser…");
 
   // Spawn Playwright test with optimizations
   const args = [
@@ -463,6 +576,7 @@ async function executeBooking(asn, specFile, resolve) {
     return resolve({ ok: false, error: `Failed to start Playwright: ${spawnErr.message}` });
   }
   setActiveChild(child, "Booking");
+  addProgress("Browser launched, running booking test…");
 
   let stdout = "";
   let stderr = "";
@@ -488,11 +602,12 @@ async function executeBooking(asn, specFile, resolve) {
     });
   }, BOOKING_TIMEOUT_MS);
 
-  child.stdout.on("data", (data) => { stdout += data.toString(); });
-  child.stderr.on("data", (data) => { stderr += data.toString(); });
+  child.stdout.on("data", (data) => { stdout += data.toString(); parseStdoutForProgress(data); });
+  child.stderr.on("data", (data) => { stderr += data.toString(); parseStdoutForProgress(data); });
 
   child.on("close", (code) => {
     clearTimeout(timeoutHandle);
+    addProgress("Booking process completed");
 
     // Read structured results from the JSON file written by the spec
     let fileResults = [];
@@ -621,6 +736,8 @@ app.post("/api/booking/create-multi", async (req, res) => {
 
 function executeFullFlow(asn, resolve) {
   const resultsFilePath = path.join(PLAYWRIGHT_PROJECT, "full-scc-flow-results.json");
+  clearProgress();
+  addProgress(`Starting Full SCC Flow for ASN(s): ${asn}`);
   try { fs.unlinkSync(resultsFilePath); } catch (_) {}
 
   const args = [
@@ -642,6 +759,7 @@ function executeFullFlow(asn, resolve) {
     return resolve({ ok: false, error: `Failed to start Playwright: ${spawnErr.message}` });
   }
   setActiveChild(child, "Full SCC Flow");
+  addProgress("Browser launched, running full SCC flow…");
 
   let stdout = "", stderr = "";
   let settled = false;
@@ -659,11 +777,12 @@ function executeFullFlow(asn, resolve) {
     finish({ ok: false, error: `Full SCC flow timed out after ${Math.floor(timeoutMs / 1000)}s` });
   }, timeoutMs);
 
-  child.stdout.on("data", (d) => { stdout += d.toString(); });
-  child.stderr.on("data", (d) => { stderr += d.toString(); });
+  child.stdout.on("data", (d) => { stdout += d.toString(); parseStdoutForProgress(d); });
+  child.stderr.on("data", (d) => { stderr += d.toString(); parseStdoutForProgress(d); });
 
   child.on("close", (code) => {
     clearTimeout(timeoutHandle);
+    addProgress("Full SCC Flow completed");
     const merged = `${stdout}\n${stderr}`;
 
     // Read structured results file

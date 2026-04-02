@@ -448,6 +448,35 @@
     }
     .btn-cancel:hover { background: #b91c1c; }
     .btn-cancel:active { transform: scale(0.97); }
+
+    /* ── Live Commentary Log ── */
+    .live-log {
+      display: none;
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: #1e293b;
+      border-radius: 8px;
+      font-family: "Courier New", monospace;
+      font-size: 0.78rem;
+      color: #94a3b8;
+      max-height: 180px;
+      overflow-y: auto;
+      border: 1px solid #334155;
+    }
+    .live-log .log-entry {
+      padding: 2px 0;
+      line-height: 1.5;
+    }
+    .live-log .log-ts {
+      color: #64748b;
+      margin-right: 8px;
+    }
+    .live-log .log-msg {
+      color: #e2e8f0;
+    }
+    .live-log .log-entry:last-child .log-msg {
+      color: #38bdf8;
+    }
   </style>
 </head>
 <body>
@@ -485,6 +514,7 @@
       &#128269;&nbsp; Check ASN in SCC
     </button>
     <button class="btn-cancel" id="cancelLookup" onclick="forceCancel('lookup')">&#10006; Force Cancel</button>
+    <div class="live-log" id="liveLogLookup"></div>
     <div id="lookupResult" class="lookup-result" style="display:none;"></div>
   </div>
 
@@ -509,6 +539,7 @@
       </button>
     </div>
     <button class="btn-cancel" id="cancelBooking" onclick="forceCancel('booking')">&#10006; Force Cancel</button>
+    <div class="live-log" id="liveLogBooking"></div>
     <div id="bookingResult" style="display:none; margin-top:14px;"></div>
   </div>
 
@@ -527,6 +558,7 @@
       <span class="btn-label-sub">ASN Lookup + Single Booking Creation + Edit + Submit + Approve</span>
     </button>
     <button class="btn-cancel" id="cancelFullFlow" onclick="forceCancel('fullFlow')">&#10006; Force Cancel</button>
+    <div class="live-log" id="liveLogFullFlow"></div>
     <div id="fullFlowResult" style="display:none; margin-top:14px;"></div>
   </div>
 
@@ -670,6 +702,53 @@
           `</div>`;
       }
     }
+    // Also stop any live log polling
+    stopProgressPolling();
+  }
+
+  // ── Live commentary polling ─────────────────────────────────────────────
+  let progressPollInterval = null;
+  let progressSeenIndex = 0;
+  let activeLogElementId = null;
+
+  function startProgressPolling(logElementId) {
+    stopProgressPolling();
+    progressSeenIndex = 0;
+    activeLogElementId = logElementId;
+    const logEl = document.getElementById(logElementId);
+    if (logEl) {
+      logEl.style.display = "block";
+      logEl.innerHTML = '<div class="log-entry"><span class="log-msg">Waiting for updates…</span></div>';
+    }
+    progressPollInterval = setInterval(pollProgress, 800);
+  }
+
+  function stopProgressPolling() {
+    if (progressPollInterval) {
+      clearInterval(progressPollInterval);
+      progressPollInterval = null;
+    }
+  }
+
+  async function pollProgress() {
+    try {
+      const res = await fetch(`/api/progress?since=${progressSeenIndex}`);
+      const data = await res.json();
+      if (data.entries && data.entries.length > 0) {
+        const logEl = document.getElementById(activeLogElementId);
+        if (!logEl) return;
+        // Clear the "Waiting" message on first real entry
+        if (progressSeenIndex === 0) logEl.innerHTML = "";
+        for (const entry of data.entries) {
+          const div = document.createElement("div");
+          div.className = "log-entry";
+          div.innerHTML = `<span class="log-ts">[${entry.ts}]</span><span class="log-msg">${escapeHtml(entry.message)}</span>`;
+          logEl.appendChild(div);
+        }
+        logEl.scrollTop = logEl.scrollHeight;
+        progressSeenIndex = data.total;
+      }
+    } catch (_) { /* ignore polling errors */ }
   }
 
   function setAllButtons(disabled) {
@@ -985,6 +1064,7 @@
     setAllButtons(true);
     showCancelBtn("cancelBooking");
     abortControllers.booking = new AbortController();
+    startProgressPolling("liveLogBooking");
 
     resultDiv.style.display = "block";
     renderBookingLoading(resultDiv, startedAt, modeLabel);
@@ -1080,6 +1160,7 @@
     } finally {
       clearInterval(progressInterval);
       delete abortControllers.booking;
+      stopProgressPolling();
       hideCancelBtn("cancelBooking");
       setAllButtons(false);
     }
@@ -1205,6 +1286,7 @@
     setAllButtons(true);
     showCancelBtn("cancelLookup");
     abortControllers.lookup = new AbortController();
+    startProgressPolling("liveLogLookup");
     resultDiv.style.display = "block";
 
     // Show loading – all ASNs searched together in one request
@@ -1287,6 +1369,7 @@
     } finally {
       clearInterval(progressInterval);
       delete abortControllers.lookup;
+      stopProgressPolling();
       hideCancelBtn("cancelLookup");
       btn.disabled = false;
       setAllButtons(false);
@@ -1341,6 +1424,7 @@
     setAllButtons(true);
     showCancelBtn("cancelFullFlow");
     abortControllers.fullFlow = new AbortController();
+    startProgressPolling("liveLogFullFlow");
     resultDiv.style.display = "block";
 
     const renderLoading = () => {
@@ -1466,6 +1550,7 @@
     } finally {
       clearInterval(progressInterval);
       delete abortControllers.fullFlow;
+      stopProgressPolling();
       hideCancelBtn("cancelFullFlow");
       setAllButtons(false);
     }
