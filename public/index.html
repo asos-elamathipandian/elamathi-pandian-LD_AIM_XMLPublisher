@@ -412,6 +412,24 @@
       background: #eff6ff;
       border-left: 4px solid #3b82f6;
     }
+
+    /* ── Full SCC Flow ── */
+    .btn-full-flow {
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn-full-flow:hover { opacity: 0.92; }
+    .btn-full-flow:active { transform: scale(0.99); }
+    .btn-full-flow:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -451,7 +469,7 @@
     </div>
     <div class="booking-buttons">
       <button class="btn-booking-single" id="btnBookingSingle" onclick="createBookingSingle()">
-        ▶&nbsp; Single ASN &times; Multiple Bookings
+        ▶&nbsp; Single ASN per Booking
         <span class="btn-label-sub">One booking per ASN, login once</span>
       </button>
       <button class="btn-booking-multi" id="btnBookingMulti" onclick="createBookingMulti()">
@@ -460,6 +478,23 @@
       </button>
     </div>
     <div id="bookingResult" style="display:none; margin-top:14px;"></div>
+  </div>
+
+  <!-- ── Full SCC Flow ── -->
+  <div class="card">
+    <div class="card-title">Full SCC Flow &mdash; One-Click Booking</div>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label for="fullFlowAsn">ASN</label>
+        <input id="fullFlowAsn" type="text" placeholder="e.g. 49870000001275 or ASN1,ASN2,ASN3" />
+        <span class="field-hint">Multiple ASNs must be comma-separated, e.g. <strong>ASN1,ASN2,ASN3</strong>. All ASNs will be combined into a single booking.</span>
+      </div>
+    </div>
+    <button class="btn-full-flow" id="btnFullFlow" onclick="runFullSCCFlow()" style="margin-top:14px;">
+      &#9889;&nbsp; Full SCC Flow
+      <span class="btn-label-sub">ASN Lookup + Single Booking Creation + Edit + Submit + Approve</span>
+    </button>
+    <div id="fullFlowResult" style="display:none; margin-top:14px;"></div>
   </div>
 
   <!-- ── Carrier & WMS Events ── -->
@@ -555,7 +590,7 @@
   }
 
   function setAllButtons(disabled) {
-    document.querySelectorAll(".btn-msg, .btn-generate-all, .btn-booking, .btn-booking-single, .btn-booking-multi, .btn-lookup")
+    document.querySelectorAll(".btn-msg, .btn-generate-all, .btn-booking, .btn-booking-single, .btn-booking-multi, .btn-lookup, .btn-full-flow")
       .forEach(b => (b.disabled = disabled));
   }
 
@@ -1160,6 +1195,173 @@
     const d = document.createElement("div");
     d.appendChild(document.createTextNode(str));
     return d.innerHTML;
+  }
+
+  // ── Full SCC Flow ──────────────────────────────────────────────────────────
+
+  const FULL_FLOW_STEPS = [
+    { key: "queued", label: "Queued" },
+    { key: "logging-in", label: "Logging in" },
+    { key: "looking-up", label: "Looking up ASNs" },
+    { key: "creating", label: "Creating booking" },
+    { key: "editing", label: "Editing & Submitting" },
+    { key: "approving", label: "Approving" },
+    { key: "done", label: "Complete" },
+  ];
+
+  function fullFlowStepsHtml(activeKey) {
+    return `<div class="progress-steps">` +
+      FULL_FLOW_STEPS.map((s, i) => {
+        const cls = s.key === activeKey ? "active"
+                  : FULL_FLOW_STEPS.findIndex(x => x.key === activeKey) > i ? "done"
+                  : "queued";
+        return (i > 0 ? `<span class="step-arrow">›</span>` : "") +
+               `<span class="step ${cls}">${s.label}</span>`;
+      }).join("") +
+    `</div>`;
+  }
+
+  function fullFlowPhaseKey(startedAt) {
+    const ms = Date.now() - startedAt;
+    if (ms < 8000) return "logging-in";
+    if (ms < 25000) return "looking-up";
+    if (ms < 60000) return "creating";
+    if (ms < 150000) return "editing";
+    return "approving";
+  }
+
+  async function runFullSCCFlow() {
+    const asn = document.getElementById("fullFlowAsn").value.trim();
+    if (!asn) { alert("Please enter one or more ASNs"); return; }
+
+    const resultDiv = document.getElementById("fullFlowResult");
+    const startedAt = Date.now();
+    setAllButtons(true);
+    resultDiv.style.display = "block";
+
+    const renderLoading = () => {
+      const phase = fullFlowPhaseKey(startedAt);
+      resultDiv.innerHTML =
+        `<div class="result-item loading">` +
+          `<div class="spinner"></div>` +
+          `<div class="result-body">` +
+            `<div class="result-label">Full SCC Flow in progress</div>` +
+            fullFlowStepsHtml(phase) +
+            `<div style="font-size:0.8rem;color:#64748b;margin-top:6px;">Processing ASN(s)\u2026</div>` +
+            `<div class="result-remote" style="color:#6b7280;margin-top:6px">\u23F1 Running for ${elapsedFrom(startedAt)}</div>` +
+          `</div>` +
+        `</div>`;
+    };
+    renderLoading();
+    const progressInterval = setInterval(renderLoading, 1000);
+
+    try {
+      const res = await fetch("/api/full-scc-flow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asn }),
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        let tableHtml = '';
+        if (data.details && data.details.length > 0) {
+          const th = 'padding:5px 10px;text-align:left;font-weight:700;color:#475569;border-bottom:1.5px solid #e2e8f0;white-space:nowrap;';
+          const td = 'padding:5px 10px;font-family:monospace;font-size:0.82rem;border-bottom:1px solid #f0f0f0;white-space:nowrap;';
+          tableHtml = `<div style="overflow-x:auto;margin-top:12px;">` +
+            `<table style="border-collapse:collapse;font-size:0.82rem;width:100%;">` +
+            `<thead><tr style="background:#f1f5f9;">` +
+              `<th style="${th}">ASN</th><th style="${th}">PO</th><th style="${th}">SKU</th><th style="${th}">Units</th><th style="${th}">Carrier</th>` +
+            `</tr></thead><tbody>` +
+            data.details.map(d =>
+              `<tr>` +
+                `<td style="${td}">${escapeHtml(d.asn||'\u2014')}</td>` +
+                `<td style="${td}">${escapeHtml(d.po||'\u2014')}</td>` +
+                `<td style="${td}">${escapeHtml(d.sku||'\u2014')}</td>` +
+                `<td style="${td}">${escapeHtml(d.units||'\u2014')}</td>` +
+                `<td style="${td}">${escapeHtml(d.carrier||'\u2014')}</td>` +
+              `</tr>`
+            ).join('') +
+            `</tbody></table></div>`;
+        }
+
+        const statusText = data.bookingStatus || 'N/A';
+        const approvalNote = data.approvalPerformed
+          ? '<span style="color:#059669;font-weight:600;">Approval performed</span>'
+          : '<span style="color:#6b7280;font-weight:600;">No approval needed</span>';
+        const headingLabel = data.approvalPerformed
+          ? 'Booking Created &amp; Approved'
+          : 'Booking Created &mdash; ' + escapeHtml(statusText);
+
+        resultDiv.innerHTML =
+          `<div class="result-item success">` +
+            `<div class="result-icon">\u2705</div>` +
+            `<div class="result-body">` +
+              `<div class="result-label">Full SCC Flow \u2014 ${headingLabel}</div>` +
+              fullFlowStepsHtml("done") +
+              `<div class="booking-info" style="margin-top:12px;">` +
+                `<div class="booking-detail">` +
+                  `<div class="booking-detail-label">VB Reference</div>` +
+                  `<div class="booking-detail-value" style="font-family:monospace;font-size:1.1rem;font-weight:700;color:#059669;">${escapeHtml(data.vbReference || 'N/A')}</div>` +
+                `</div>` +
+                `<div class="booking-detail">` +
+                  `<div class="booking-detail-label">Status</div>` +
+                  `<div class="booking-detail-value">${escapeHtml(statusText)}</div>` +
+                  `<div style="font-size:0.75rem;margin-top:4px;">${approvalNote}</div>` +
+                `</div>` +
+              `</div>` +
+              tableHtml +
+              `<div class="result-remote" style="color:#6b7280;margin-top:10px">\u23F1 Completed in ${elapsedFrom(startedAt)}</div>` +
+            `</div>` +
+          `</div>`;
+      } else {
+        let detailsHtml = '';
+        if (data.details && data.details.length > 0) {
+          const th = 'padding:5px 8px;text-align:left;font-weight:700;color:#475569;border-bottom:1.5px solid #e2e8f0;white-space:nowrap;';
+          const td = 'padding:4px 8px;font-family:monospace;font-size:0.78rem;border-bottom:1px solid #f0f0f0;white-space:nowrap;';
+          detailsHtml = `<div style="overflow-x:auto;margin-top:10px;">` +
+            `<table style="border-collapse:collapse;font-size:0.78rem;width:100%;">` +
+            `<thead><tr style="background:#f1f5f9;">` +
+              `<th style="${th}">ASN</th><th style="${th}">PO</th><th style="${th}">SKU</th><th style="${th}">Units</th><th style="${th}">Status</th><th style="${th}">VB Ref</th>` +
+            `</tr></thead><tbody>` +
+            data.details.map(d =>
+              `<tr>` +
+                `<td style="${td}">${escapeHtml(d.asn||'\u2014')}</td>` +
+                `<td style="${td}">${escapeHtml(d.po||'\u2014')}</td>` +
+                `<td style="${td}">${escapeHtml(d.sku||'\u2014')}</td>` +
+                `<td style="${td}">${escapeHtml(d.units||'\u2014')}</td>` +
+                `<td style="${td}">${escapeHtml(d.bookingStatus||'\u2014')}</td>` +
+                `<td style="${td}">${escapeHtml(d.vbRef||'\u2014')}</td>` +
+              `</tr>`
+            ).join('') +
+            `</tbody></table></div>`;
+        }
+
+        resultDiv.innerHTML =
+          `<div class="result-item error">` +
+            `<div class="result-icon">\u274C</div>` +
+            `<div class="result-body">` +
+              `<div class="result-label">Full SCC Flow \u2014 Failed</div>` +
+              `<div class="result-error" style="margin-top:6px;white-space:pre-wrap;">${escapeHtml(data.error || 'Unknown error')}</div>` +
+              detailsHtml +
+              `<div class="result-remote" style="color:#6b7280;margin-top:8px">\u23F1 Failed after ${elapsedFrom(startedAt)}</div>` +
+            `</div>` +
+          `</div>`;
+      }
+    } catch (e) {
+      resultDiv.innerHTML =
+        `<div class="result-item error">` +
+          `<div class="result-icon">\u274C</div>` +
+          `<div class="result-body">` +
+            `<div class="result-label">Full SCC Flow \u2014 Error</div>` +
+            `<div class="result-error" style="margin-top:4px">${escapeHtml(e.message)}</div>` +
+            `<div class="result-remote" style="color:#6b7280;margin-top:8px">\u23F1 Failed after ${elapsedFrom(startedAt)}</div>` +
+          `</div>` +
+        `</div>`;
+    } finally {
+      clearInterval(progressInterval);
+      setAllButtons(false);
+    }
   }
 </script>
 

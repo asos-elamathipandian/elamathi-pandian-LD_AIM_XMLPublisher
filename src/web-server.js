@@ -391,8 +391,12 @@ const bookingQueue = [];
 function processBookingQueue() {
   if (bookingInProgress || bookingQueue.length === 0) return;
   bookingInProgress = true;
-  const { asn, specFile, resolve } = bookingQueue.shift();
-  executeBooking(asn, specFile, resolve);
+  const item = bookingQueue.shift();
+  if (item.executor) {
+    item.executor(item.resolve);
+  } else {
+    executeBooking(item.asn, item.specFile, item.resolve);
+  }
 }
 
 async function executeBooking(asn, specFile, resolve) {
@@ -590,6 +594,110 @@ app.post("/api/booking/create-multi", async (req, res) => {
 
   const resultPromise = new Promise((resolve) => {
     bookingQueue.push({ asn, specFile: "MultiASNSingleBooking.spec.js", resolve });
+    processBookingQueue();
+  });
+
+  const result = await resultPromise;
+  res.json(result);
+});
+
+// ── Full SCC Flow (ASN Lookup + Single Booking + Approval) ──────────────────
+
+function executeFullFlow(asn, resolve) {
+  const resultsFilePath = path.join(PLAYWRIGHT_PROJECT, "full-scc-flow-results.json");
+  try { fs.unlinkSync(resultsFilePath); } catch (_) {}
+
+  const args = [
+    "playwright", "test", "tests/FullSCCFlow.spec.js",
+    "--reporter=line", "--workers=1",
+  ];
+  const env = { ...process.env, CI: "true", FULL_FLOW_ASN_VALUE: asn };
+
+  let child;
+  try {
+    child = process.platform === "win32"
+      ? spawn("cmd.exe", ["/d", "/s", "/c", `npx ${args.join(" ")}`], {
+          cwd: PLAYWRIGHT_PROJECT, shell: false, env,
+        })
+      : spawn("npx", args, { cwd: PLAYWRIGHT_PROJECT, shell: false, env });
+  } catch (spawnErr) {
+    bookingInProgress = false;
+    processBookingQueue();
+    return resolve({ ok: false, error: `Failed to start Playwright: ${spawnErr.message}` });
+  }
+
+  let stdout = "", stderr = "";
+  let settled = false;
+  const finish = (payload) => {
+    if (settled) return;
+    settled = true;
+    bookingInProgress = false;
+    processBookingQueue();
+    resolve(payload);
+  };
+
+  const timeoutMs = Number(process.env.FULL_FLOW_TIMEOUT_MS || 600000);
+  const timeoutHandle = setTimeout(() => {
+    try { child.kill("SIGKILL"); } catch (_) {}
+    finish({ ok: false, error: `Full SCC flow timed out after ${Math.floor(timeoutMs / 1000)}s` });
+  }, timeoutMs);
+
+  child.stdout.on("data", (d) => { stdout += d.toString(); });
+  child.stderr.on("data", (d) => { stderr += d.toString(); });
+
+  child.on("close", (code) => {
+    clearTimeout(timeoutHandle);
+    const merged = `${stdout}\n${stderr}`;
+
+    // Read structured results file
+    let fileResults = null;
+    try {
+      fileResults = JSON.parse(fs.readFileSync(resultsFilePath, "utf-8"));
+    } catch (_) {}
+
+    if (fileResults) {
+      return finish(fileResults);
+    }
+
+    // Fallback: parse from stdout
+    const jsonMatch = merged.match(/FULL_FLOW_RESULT:\s*(\{.*\})/);
+    if (jsonMatch) {
+      try { return finish(JSON.parse(jsonMatch[1])); } catch {}
+    }
+
+    if (code === 0) {
+      finish({ ok: true, asn, details: [] });
+    } else {
+      const errorLines = merged.split("\n").filter(
+        (l) => /error|fail|timeout|✕/i.test(l)
+      );
+      finish({
+        ok: false,
+        error: errorLines.length
+          ? errorLines.slice(0, 5).join("\n")
+          : "Full flow failed (exit code " + code + ")",
+      });
+    }
+  });
+
+  child.on("error", (e) => {
+    clearTimeout(timeoutHandle);
+    finish({ ok: false, error: `Failed to run Playwright: ${e.message}` });
+  });
+}
+
+app.post("/api/full-scc-flow", async (req, res) => {
+  req.setTimeout(0);
+  const err = validate(req.body, ["asn"]);
+  if (err) return res.status(400).json({ ok: false, error: err });
+
+  const { asn } = req.body;
+
+  const resultPromise = new Promise((resolve) => {
+    bookingQueue.push({
+      resolve,
+      executor: (resolveInner) => executeFullFlow(asn, resolveInner),
+    });
     processBookingQueue();
   });
 
