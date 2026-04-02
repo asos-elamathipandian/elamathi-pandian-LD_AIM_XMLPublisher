@@ -262,6 +262,44 @@
     .btn-booking:active { transform: scale(0.99); }
     .btn-booking:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    .booking-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .btn-booking-single {
+      padding: 13px;
+      background: #e94560;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.93rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-booking-single:hover { background: #c73e54; }
+    .btn-booking-single:active { transform: scale(0.99); }
+    .btn-booking-single:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-booking-multi {
+      padding: 13px;
+      background: #7c3aed;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.93rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-booking-multi:hover { background: #6d28d9; }
+    .btn-booking-multi:active { transform: scale(0.99); }
+    .btn-booking-multi:disabled { opacity: 0.5; cursor: not-allowed; }
+
     .booking-info {
       display: flex;
       gap: 14px;
@@ -408,12 +446,19 @@
       <div class="form-group" style="grid-column: 1 / -1;">
         <label for="bookingAsn">ASN for Booking</label>
         <input id="bookingAsn" type="text" placeholder="e.g. 49870000001275 or ASN1,ASN2,ASN3" />
-        <span class="field-hint">Multiple ASNs: comma-separated. Single booking will be created for all ASNs listed.</span>
+        <span class="field-hint">Multiple ASNs: comma-separated. Choose a booking mode below.</span>
       </div>
     </div>
-    <button class="btn-booking" id="btnBooking" onclick="createBooking()" style="margin-top:14px;">
-      ▶&nbsp; Create Booking
-    </button>
+    <div class="booking-buttons">
+      <button class="btn-booking-single" id="btnBookingSingle" onclick="createBookingSingle()">
+        ▶&nbsp; Single ASN &times; Multiple Bookings
+        <span class="btn-label-sub">One booking per ASN, login once</span>
+      </button>
+      <button class="btn-booking-multi" id="btnBookingMulti" onclick="createBookingMulti()">
+        ▶&nbsp; All ASNs &times; One Booking
+        <span class="btn-label-sub">All ASNs combined in one booking</span>
+      </button>
+    </div>
     <div id="bookingResult" style="display:none; margin-top:14px;"></div>
   </div>
 
@@ -510,7 +555,7 @@
   }
 
   function setAllButtons(disabled) {
-    document.querySelectorAll(".btn-msg, .btn-generate-all, .btn-booking, .btn-lookup")
+    document.querySelectorAll(".btn-msg, .btn-generate-all, .btn-booking, .btn-booking-single, .btn-booking-multi, .btn-lookup")
       .forEach(b => (b.disabled = disabled));
   }
 
@@ -586,13 +631,14 @@
     return "approving";
   }
 
-  function renderBookingLoading(resultDiv, startedAt) {
+  function renderBookingLoading(resultDiv, startedAt, modeLabel) {
     const phaseKey = bookingPhaseKey(startedAt);
+    const label = modeLabel ? modeLabel + " — " : "";
     resultDiv.innerHTML =
       `<div class="result-item loading" style="margin-top:14px">` +
         `<div class="spinner"></div>` +
         `<div class="result-body">` +
-          `<div class="result-label">Booking in progress</div>` +
+          `<div class="result-label">${label}Booking in progress</div>` +
           bookingStepsHtml(phaseKey) +
           `<div style="font-size:0.8rem; color:#64748b; margin-top:6px;">Creating booking for ASN…</div>` +
           `<div class="result-remote" style="color:#6b7280;margin-top:6px">⏱ Running for ${elapsedFrom(startedAt)}</div>` +
@@ -725,49 +771,127 @@
     setAllButtons(false);
   }
 
-  // ── Booking Creation ─────────────────────────────────────────────────────
+  // ── Booking Creation (Two Modes) ───────────────────────────────────────
 
-  async function createBooking() {
+  function renderVbReferences(data) {
+    const details = data.bookingDetails && data.bookingDetails.length > 0
+      ? data.bookingDetails
+      : null;
+
+    // Use bookingDetails (from JSON file) if available, otherwise fall back to arrays
+    if (details) {
+      if (details.length === 0) {
+        return `<div class="booking-info"><div class="booking-detail">` +
+          `<div class="booking-detail-label">VB Reference</div>` +
+          `<div class="booking-detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:700;color:#1f2937;margin-top:4px;">N/A</div>` +
+          `</div></div>`;
+      }
+      return `<div class="booking-info" style="flex-direction:column;gap:8px;">` +
+        details.map((d, i) => {
+          const vb = d.vbReference || 'N/A';
+          const status = d.bookingStatus || '';
+          const asn = d.asn || '';
+          const badgeCls = status.toLowerCase() === 'draft' ? 'badge-draft'
+                         : status.toLowerCase() === 'submitted' ? 'badge-submitted'
+                         : 'badge-unknown';
+          const statusBadge = status
+            ? ` <span class="booking-status-badge ${badgeCls}">${escapeHtml(status)}</span>`
+            : '';
+          const asnLabel = asn ? ` — ASN: ${escapeHtml(asn)}` : '';
+          const numLabel = details.length > 1 ? '#' + (i + 1) : '';
+          return `<div class="booking-detail" style="display:flex;align-items:center;gap:12px;">` +
+            `<div>` +
+              `<div class="booking-detail-label">VB Reference ${numLabel}${asnLabel}</div>` +
+              `<div class="booking-detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:700;color:#1f2937;margin-top:4px;">${escapeHtml(vb)}${statusBadge}</div>` +
+            `</div>` +
+          `</div>`;
+        }).join('') +
+      `</div>`;
+    }
+
+    // Fallback to vbReferences array
+    const refs = data.vbReferences && data.vbReferences.length > 0
+      ? data.vbReferences
+      : (data.vbReference ? [data.vbReference] : []);
+    const statuses = data.bookingStatuses || [];
+    if (refs.length === 0) {
+      return `<div class="booking-info"><div class="booking-detail">` +
+        `<div class="booking-detail-label">VB Reference</div>` +
+        `<div class="booking-detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:700;color:#1f2937;margin-top:4px;">N/A</div>` +
+        `</div></div>`;
+    }
+    return `<div class="booking-info" style="flex-direction:column;gap:8px;">` +
+      refs.map((vb, i) => {
+        const status = statuses[i] || '';
+        const badgeCls = status.toLowerCase() === 'draft' ? 'badge-draft'
+                       : status.toLowerCase() === 'submitted' ? 'badge-submitted'
+                       : 'badge-unknown';
+        const statusBadge = status
+          ? ` <span class="booking-status-badge ${badgeCls}">${escapeHtml(status)}</span>`
+          : '';
+        return `<div class="booking-detail" style="display:flex;align-items:center;gap:12px;">` +
+          `<div>` +
+            `<div class="booking-detail-label">VB Reference ${refs.length > 1 ? '#' + (i + 1) : ''}</div>` +
+            `<div class="booking-detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:700;color:#1f2937;margin-top:4px;">${escapeHtml(vb)}${statusBadge}</div>` +
+          `</div>` +
+        `</div>`;
+      }).join('') +
+    `</div>`;
+  }
+
+  async function createBookingSingle() {
+    await _createBooking("/api/booking/create-single", "Single ASN × Multiple Bookings");
+  }
+
+  async function createBookingMulti() {
+    await _createBooking("/api/booking/create-multi", "All ASNs × One Booking");
+  }
+
+  async function _createBooking(endpoint, modeLabel) {
     const asn = document.getElementById("bookingAsn").value.trim();
     if (!asn) { alert("Please enter at least one ASN"); return; }
 
-    const btn = document.getElementById("btnBooking");
     const resultDiv = document.getElementById("bookingResult");
     const startedAt = Date.now();
     let progressInterval;
-    btn.disabled = true;
     setAllButtons(true);
 
     resultDiv.style.display = "block";
-    renderBookingLoading(resultDiv, startedAt);
-    progressInterval = setInterval(() => renderBookingLoading(resultDiv, startedAt), 1000);
+    renderBookingLoading(resultDiv, startedAt, modeLabel);
+    progressInterval = setInterval(() => renderBookingLoading(resultDiv, startedAt, modeLabel), 1000);
 
     try {
-      const res = await fetch("/api/booking/create", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ asn }),
       });
       const data = await res.json();
 
+      // Always fetch the results file for the most complete booking details
+      if (data.ok || data.vbReference) {
+        try {
+          const resultsRes = await fetch("/api/booking/results");
+          const resultsData = await resultsRes.json();
+          if (resultsData.ok && resultsData.bookingDetails && resultsData.bookingDetails.length > 0) {
+            data.bookingDetails = resultsData.bookingDetails;
+          }
+        } catch (_) { /* ignore — fall back to existing data */ }
+      }
+
       if (data.ok) {
         resultDiv.innerHTML =
           `<div class="result-item success" style="margin-top:14px">` +
             `<div class="result-icon">\u2705</div>` +
             `<div class="result-body">` +
-              `<div class="result-label">Booking Created</div>` +
+              `<div class="result-label">${escapeHtml(modeLabel)} — Booking Created</div>` +
               `<div class="progress-steps">` +
                 BOOKING_STEPS.map((s, i) =>
                   (i > 0 ? `<span class="step-arrow">›</span>` : "") +
                   `<span class="step done">${s.label}</span>`
                 ).join("") +
               `</div>` +
-              `<div class="booking-info">` +
-                `<div class="booking-detail">` +
-                  `<div class="booking-detail-label">VB Reference</div>` +
-                  `<div class="booking-detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:700;color:#1f2937;margin-top:4px;">${escapeHtml(data.vbReference || "N/A")}</div>` +
-                `</div>` +
-              `</div>` +
+              renderVbReferences(data) +
               `<div class="result-remote" style="color:#6b7280;margin-top:8px">⏱ Completed in ${elapsedFrom(startedAt)}</div>` +
             `</div>` +
           `</div>`;
@@ -776,26 +900,54 @@
           `<div class="result-item error" style="margin-top:14px">` +
             `<div class="result-icon">\u274C</div>` +
             `<div class="result-body">` +
-              `<div class="result-label">Booking Failed</div>` +
+              `<div class="result-label">${escapeHtml(modeLabel)} — Booking Failed</div>` +
               `<div class="result-error" style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(data.error || "Unknown error")}</div>` +
               `<div class="result-remote" style="color:#6b7280;margin-top:8px">⏱ Failed after ${elapsedFrom(startedAt)}</div>` +
             `</div>` +
           `</div>`;
       }
     } catch (e) {
-      resultDiv.innerHTML =
-        `<div class="result-item error" style="margin-top:14px">` +
-          `<div class="result-icon">\u274C</div>` +
-          `<div class="result-body">` +
-            `<div class="result-label">Booking Error</div>` +
-            bookingStepsHtml(bookingPhaseKey(startedAt)) +
-            `<div class="result-error" style="margin-top:4px">${escapeHtml(e.message)}</div>` +
-            `<div class="result-remote" style="color:#6b7280;margin-top:8px">⏱ Failed after ${elapsedFrom(startedAt)}</div>` +
-          `</div>` +
-        `</div>`;
+      // Connection may have dropped but the booking might have completed.
+      // Try fetching results from the results endpoint as a recovery.
+      let recovered = false;
+      try {
+        const fallbackRes = await fetch("/api/booking/results");
+        const fallbackData = await fallbackRes.json();
+        if (fallbackData.ok && fallbackData.bookingDetails && fallbackData.bookingDetails.length > 0) {
+          recovered = true;
+          const data = { ok: true, bookingDetails: fallbackData.bookingDetails };
+          resultDiv.innerHTML =
+            `<div class="result-item success" style="margin-top:14px">` +
+              `<div class="result-icon">\u2705</div>` +
+              `<div class="result-body">` +
+                `<div class="result-label">${escapeHtml(modeLabel)} — Booking Created</div>` +
+                `<div class="progress-steps">` +
+                  BOOKING_STEPS.map((s, i) =>
+                    (i > 0 ? `<span class="step-arrow">›</span>` : "") +
+                    `<span class="step done">${s.label}</span>`
+                  ).join("") +
+                `</div>` +
+                renderVbReferences(data) +
+                `<div class="result-remote" style="color:#6b7280;margin-top:8px">⏱ Completed in ${elapsedFrom(startedAt)} (recovered)</div>` +
+              `</div>` +
+            `</div>`;
+        }
+      } catch (_) { /* recovery failed — show original error */ }
+
+      if (!recovered) {
+        resultDiv.innerHTML =
+          `<div class="result-item error" style="margin-top:14px">` +
+            `<div class="result-icon">\u274C</div>` +
+            `<div class="result-body">` +
+              `<div class="result-label">${escapeHtml(modeLabel)} — Booking Error</div>` +
+              bookingStepsHtml(bookingPhaseKey(startedAt)) +
+              `<div class="result-error" style="margin-top:4px">${escapeHtml(e.message)}</div>` +
+              `<div class="result-remote" style="color:#6b7280;margin-top:8px">⏱ Failed after ${elapsedFrom(startedAt)}</div>` +
+            `</div>` +
+          `</div>`;
+      }
     } finally {
       clearInterval(progressInterval);
-      btn.disabled = false;
       setAllButtons(false);
     }
   }

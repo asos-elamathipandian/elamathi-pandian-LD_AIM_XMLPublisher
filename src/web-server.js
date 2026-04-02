@@ -365,7 +365,7 @@ app.post("/api/asn-lookup", async (req, res) => {
 
 // ── Booking Creation (Playwright) ─────────────────────────────────────────────
 
-const BOOKING_TIMEOUT_MS = Number(process.env.BOOKING_TIMEOUT_MS || 300000);
+const BOOKING_TIMEOUT_MS = Number(process.env.BOOKING_TIMEOUT_MS || 600000);
 
 // Booking request queue to prevent concurrent runs (which cause conflicts)
 let bookingInProgress = false;
@@ -374,17 +374,21 @@ const bookingQueue = [];
 function processBookingQueue() {
   if (bookingInProgress || bookingQueue.length === 0) return;
   bookingInProgress = true;
-  const { asn, resolve } = bookingQueue.shift();
-  executeBooking(asn, resolve);
+  const { asn, specFile, resolve } = bookingQueue.shift();
+  executeBooking(asn, specFile, resolve);
 }
 
-async function executeBooking(asn, resolve) {
+async function executeBooking(asn, specFile, resolve) {
   const asnsForFile = asn
     .split(",")
     .map((a) => a.trim())
     .filter(Boolean)
-    .join("\n");
+    .join(",");
   const asnFilePath = path.join(PLAYWRIGHT_PROJECT, "tests", "asns.txt");
+  const resultsFilePath = path.join(PLAYWRIGHT_PROJECT, "booking-results.json");
+
+  // Clean up any previous results file
+  try { fs.unlinkSync(resultsFilePath); } catch (_) {}
 
   try {
     fs.writeFileSync(asnFilePath, asnsForFile, "utf-8");
@@ -398,7 +402,7 @@ async function executeBooking(asn, resolve) {
   const args = [
     "playwright",
     "test",
-    "tests/MultiASNbookingPassed.spec.js",
+    `tests/${specFile}`,
     "--reporter=line",
     "--workers=1",
   ];
@@ -452,20 +456,42 @@ async function executeBooking(asn, resolve) {
 
   child.on("close", (code) => {
     clearTimeout(timeoutHandle);
-    // Parse VB reference from both JSON and plain text output
-    let vbReference = null;
-    let bookingStatus = null;
+
+    // Read structured results from the JSON file written by the spec
+    let fileResults = [];
+    try {
+      const raw = fs.readFileSync(resultsFilePath, "utf-8");
+      fileResults = JSON.parse(raw);
+    } catch (_) {
+      // File may not exist if test failed before writing
+    }
+
+    // Extract VB references and statuses from file results
+    const vbReferences = fileResults.map((r) => r.vbReference).filter(Boolean);
+    const bookingStatuses = fileResults.map((r) => r.bookingStatus).filter(Boolean);
+
+    // Fallback: also parse from stdout/stderr in case file wasn't written
     const merged = `${stdout}\n${stderr}`;
-    const vbMatch = merged.match(/VB Reference:\s*(VB-\d+)/i);
-    const statusMatch = merged.match(/Booking Status:\s*(\w+)/i);
-    vbReference = vbMatch ? vbMatch[1] : null;
-    bookingStatus = statusMatch ? statusMatch[1] : null;
+    if (vbReferences.length === 0) {
+      const vbMatches = [...merged.matchAll(/VB Reference:\s*(VB-\d+)/gi)];
+      vbMatches.forEach((m) => vbReferences.push(m[1]));
+    }
+    if (bookingStatuses.length === 0) {
+      const statusMatches = [...merged.matchAll(/Booking Status:\s*(\w+)/gi)];
+      statusMatches.forEach((m) => bookingStatuses.push(m[1]));
+    }
+
+    const vbReference = vbReferences.length > 0 ? vbReferences[0] : null;
+    const bookingStatus = bookingStatuses.length > 0 ? bookingStatuses[0] : null;
 
     if (code === 0) {
       finish({
         ok: true,
         vbReference,
+        vbReferences,
         bookingStatus,
+        bookingStatuses,
+        bookingDetails: fileResults,
         passed: true,
       });
     } else {
@@ -477,7 +503,10 @@ async function executeBooking(asn, resolve) {
         ok: false,
         error: errorLines.length ? errorLines.slice(0, 5).join("\n") : "Test failed (exit code " + code + ")",
         vbReference,
+        vbReferences,
         bookingStatus,
+        bookingStatuses,
+        bookingDetails: fileResults,
         passed: false,
       });
     }
@@ -489,15 +518,61 @@ async function executeBooking(asn, resolve) {
   });
 }
 
+// GET endpoint to fetch the latest booking results file
+app.get("/api/booking/results", (req, res) => {
+  const resultsFilePath = path.join(PLAYWRIGHT_PROJECT, "booking-results.json");
+  try {
+    const raw = fs.readFileSync(resultsFilePath, "utf-8");
+    const results = JSON.parse(raw);
+    res.json({ ok: true, bookingDetails: results });
+  } catch (e) {
+    res.status(404).json({ ok: false, error: "No booking results found" });
+  }
+});
+
 app.post("/api/booking/create", async (req, res) => {
   const err = validate(req.body, ["asn"]);
   if (err) return res.status(400).json({ ok: false, error: err });
 
   const { asn } = req.body;
 
-  // Queue the booking request
+  // Queue the booking request (legacy — uses MultiASNbookingPassed)
   const resultPromise = new Promise((resolve) => {
-    bookingQueue.push({ asn, resolve });
+    bookingQueue.push({ asn, specFile: "MultiASNbookingPassed.spec.js", resolve });
+    processBookingQueue();
+  });
+
+  const result = await resultPromise;
+  res.json(result);
+});
+
+// Single ASN × Multiple Bookings — one booking per ASN, login once
+app.post("/api/booking/create-single", async (req, res) => {
+  req.setTimeout(0); // disable per-request timeout for long-running bookings
+  const err = validate(req.body, ["asn"]);
+  if (err) return res.status(400).json({ ok: false, error: err });
+
+  const { asn } = req.body;
+
+  const resultPromise = new Promise((resolve) => {
+    bookingQueue.push({ asn, specFile: "SingleASNBookingMultipleTimes.spec.js", resolve });
+    processBookingQueue();
+  });
+
+  const result = await resultPromise;
+  res.json(result);
+});
+
+// Multi ASN × One Booking — all ASNs in a single booking
+app.post("/api/booking/create-multi", async (req, res) => {
+  req.setTimeout(0); // disable per-request timeout for long-running bookings
+  const err = validate(req.body, ["asn"]);
+  if (err) return res.status(400).json({ ok: false, error: err });
+
+  const { asn } = req.body;
+
+  const resultPromise = new Promise((resolve) => {
+    bookingQueue.push({ asn, specFile: "MultiASNSingleBooking.spec.js", resolve });
     processBookingQueue();
   });
 
@@ -515,6 +590,12 @@ process.on("unhandledRejection", (reason) => {
   console.error("[unhandledRejection]", reason);
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`\nXML Generator UI  →  http://localhost:${PORT}\n`);
 });
+
+// Allow long-running booking requests (up to 10 minutes)
+server.timeout = 0;              // no socket timeout
+server.requestTimeout = 0;       // no request timeout
+server.headersTimeout = 0;       // no headers timeout
+server.keepAliveTimeout = 620000; // 10+ min keep-alive
