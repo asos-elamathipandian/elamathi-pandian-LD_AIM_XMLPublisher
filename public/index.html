@@ -996,13 +996,52 @@
   function renderSingleAsnResult(asn, info) {
     const records = info.records || 0;
     const recordsNote = records > 0 ? ` (${records} record${records > 1 ? "s" : ""})` : "";
+    const details = info.details || [];
+
+    // Build details table if PO/SKU/Qty data is available
+    let detailsHtml = '';
+    if (details.length > 0) {
+      const thStyle = 'padding:5px 8px;text-align:left;font-weight:700;color:#475569;border-bottom:1.5px solid #e2e8f0;white-space:nowrap;';
+      const tdStyle = 'padding:4px 8px;font-family:monospace;border-bottom:1px solid #f0f0f0;white-space:nowrap;';
+      detailsHtml = `<div style="overflow-x:auto;margin-top:8px;">` +
+        `<table style="border-collapse:collapse;font-size:0.78rem;width:100%;min-width:700px;">` +
+        `<thead><tr style="background:#f1f5f9;">` +
+          `<th style="${thStyle}">PO</th>` +
+          `<th style="${thStyle}">SKU</th>` +
+          `<th style="${thStyle}">Option ID</th>` +
+          `<th style="${thStyle}">Units</th>` +
+          `<th style="${thStyle}">PO SKU Qty</th>` +
+          `<th style="${thStyle}">Booked</th>` +
+          `<th style="${thStyle}">Received</th>` +
+          `<th style="${thStyle}">PO Status</th>` +
+          `<th style="${thStyle}">Booking</th>` +
+          `<th style="${thStyle}">VB Ref</th>` +
+        `</tr></thead><tbody>` +
+        details.map(d =>
+          `<tr>` +
+            `<td style="${tdStyle}">${escapeHtml(d.po || '—')}</td>` +
+            `<td style="${tdStyle}">${escapeHtml(d.sku || '—')}</td>` +
+            `<td style="${tdStyle}">${escapeHtml(d.optionId || '—')}</td>` +
+            `<td style="${tdStyle}">${escapeHtml(d.units || '—')}</td>` +
+            `<td style="${tdStyle}">${escapeHtml(d.poSkuQty || '—')}</td>` +
+            `<td style="${tdStyle}">${escapeHtml(d.bookedUnits || '—')}</td>` +
+            `<td style="${tdStyle}">${escapeHtml(d.receivedUnits || '—')}</td>` +
+            `<td style="${tdStyle}">${escapeHtml(d.poStatus || '—')}</td>` +
+            `<td style="${tdStyle}">${escapeHtml(d.bookingStatus || '—')}</td>` +
+            `<td style="${tdStyle}font-weight:600;color:#1e40af;">${escapeHtml(d.vbRef || '—')}</td>` +
+          `</tr>`
+        ).join('') +
+        `</tbody></table></div>`;
+    }
+
     if (info.found) {
       return `<div class="lookup-found" style="margin-bottom:8px;">` +
         `<div class="result-icon">✅</div>` +
-        `<div class="result-body">` +
+        `<div class="result-body" style="flex:1;min-width:0;">` +
           `<div style="font-size:0.88rem; color:#15803d; font-weight:600;">` +
             `ASN <strong style="font-family:monospace;">${escapeHtml(asn)}</strong> — Found in SCC${recordsNote}` +
           `</div>` +
+          detailsHtml +
         `</div>` +
       `</div>`;
     } else {

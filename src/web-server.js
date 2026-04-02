@@ -268,6 +268,10 @@ app.post("/api/asn-lookup", async (req, res) => {
   if (err) return res.status(400).json({ ok: false, error: err });
 
   const { asn } = req.body;
+  const lookupResultsFile = path.join(PLAYWRIGHT_PROJECT, "asn-lookup-results.json");
+
+  // Clean up previous results file
+  try { fs.unlinkSync(lookupResultsFile); } catch (_) {}
 
   const args = [
     "playwright",
@@ -318,7 +322,20 @@ app.post("/api/asn-lookup", async (req, res) => {
         clearTimeout(timeoutHandle);
         const merged = `${stdout}\n${stderr}`;
 
-        // Try new structured JSON output first
+        // Try reading the structured results file first (most reliable)
+        let fileResults = null;
+        try {
+          const raw = fs.readFileSync(lookupResultsFile, "utf-8");
+          fileResults = JSON.parse(raw);
+        } catch (_) {
+          // File may not exist if test failed before writing
+        }
+
+        if (fileResults) {
+          return finish({ ok: true, ...fileResults, asn });
+        }
+
+        // Fallback: Try structured JSON output from stdout
         const jsonMatch = merged.match(/ASN_LOOKUP_RESULTS:\s*(\{.*\})/);
         if (jsonMatch) {
           try {
