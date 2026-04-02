@@ -300,6 +300,7 @@ app.post("/api/asn-lookup", async (req, res) => {
       } catch (spawnErr) {
         return resolve({ ok: false, error: `Failed to start Playwright: ${spawnErr.message}` });
       }
+      setActiveChild(child, "ASN Lookup");
 
       let stdout = "";
       let stderr = "";
@@ -388,6 +389,20 @@ const BOOKING_TIMEOUT_MS = Number(process.env.BOOKING_TIMEOUT_MS || 600000);
 let bookingInProgress = false;
 const bookingQueue = [];
 
+// Track active child processes for force-cancel support
+let activeChild = null;
+let activeLabel = null;
+
+function setActiveChild(child, label) {
+  activeChild = child;
+  activeLabel = label;
+  if (child) {
+    child.on("close", () => {
+      if (activeChild === child) { activeChild = null; activeLabel = null; }
+    });
+  }
+}
+
 function processBookingQueue() {
   if (bookingInProgress || bookingQueue.length === 0) return;
   bookingInProgress = true;
@@ -447,6 +462,7 @@ async function executeBooking(asn, specFile, resolve) {
     processBookingQueue();
     return resolve({ ok: false, error: `Failed to start Playwright: ${spawnErr.message}` });
   }
+  setActiveChild(child, "Booking");
 
   let stdout = "";
   let stderr = "";
@@ -625,6 +641,7 @@ function executeFullFlow(asn, resolve) {
     processBookingQueue();
     return resolve({ ok: false, error: `Failed to start Playwright: ${spawnErr.message}` });
   }
+  setActiveChild(child, "Full SCC Flow");
 
   let stdout = "", stderr = "";
   let settled = false;
@@ -703,6 +720,26 @@ app.post("/api/full-scc-flow", async (req, res) => {
 
   const result = await resultPromise;
   res.json(result);
+});
+
+// ── Force Cancel ──────────────────────────────────────────────────────────────
+
+app.post("/api/cancel", (req, res) => {
+  if (activeChild) {
+    const label = activeLabel || "unknown";
+    try { activeChild.kill("SIGKILL"); } catch (_) {}
+    activeChild = null;
+    activeLabel = null;
+    bookingInProgress = false;
+    // Drain any queued items so they don't run after cancel
+    while (bookingQueue.length) {
+      const item = bookingQueue.shift();
+      item.resolve({ ok: false, error: "Cancelled by user" });
+    }
+    res.json({ ok: true, message: `Cancelled: ${label}` });
+  } else {
+    res.json({ ok: true, message: "Nothing running" });
+  }
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

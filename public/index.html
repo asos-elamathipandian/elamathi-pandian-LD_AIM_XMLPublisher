@@ -430,6 +430,24 @@
     .btn-full-flow:hover { opacity: 0.92; }
     .btn-full-flow:active { transform: scale(0.99); }
     .btn-full-flow:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Force Cancel Button ── */
+    .btn-cancel {
+      display: none;
+      padding: 9px 18px;
+      background: #dc2626;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: background 0.2s, transform 0.1s;
+      margin-top: 10px;
+    }
+    .btn-cancel:hover { background: #b91c1c; }
+    .btn-cancel:active { transform: scale(0.97); }
   </style>
 </head>
 <body>
@@ -466,6 +484,7 @@
     <button class="btn-lookup" id="btnLookup" onclick="lookupAsn()" style="margin-top:14px;">
       &#128269;&nbsp; Check ASN in SCC
     </button>
+    <button class="btn-cancel" id="cancelLookup" onclick="forceCancel('lookup')">&#10006; Force Cancel</button>
     <div id="lookupResult" class="lookup-result" style="display:none;"></div>
   </div>
 
@@ -489,6 +508,7 @@
         <span class="btn-label-sub">All ASNs combined in one booking</span>
       </button>
     </div>
+    <button class="btn-cancel" id="cancelBooking" onclick="forceCancel('booking')">&#10006; Force Cancel</button>
     <div id="bookingResult" style="display:none; margin-top:14px;"></div>
   </div>
 
@@ -506,6 +526,7 @@
       &#9889;&nbsp; Full SCC Flow
       <span class="btn-label-sub">ASN Lookup + Single Booking Creation + Edit + Submit + Approve</span>
     </button>
+    <button class="btn-cancel" id="cancelFullFlow" onclick="forceCancel('fullFlow')">&#10006; Force Cancel</button>
     <div id="fullFlowResult" style="display:none; margin-top:14px;"></div>
   </div>
 
@@ -549,6 +570,7 @@
       &#9654;&nbsp; Generate All 6 Messages
       <span class="btn-label-sub">Requires: ASN, PO, SKU, SKU Qty, ACE</span>
     </button>
+    <button class="btn-cancel" id="cancelEvents" onclick="forceCancel('events')">&#10006; Force Cancel</button>
 
     <div class="individual-buttons">
       <button class="btn-msg btn-vbkcon" onclick="generateOne('vbkcon', 'VBKCON')">
@@ -599,6 +621,55 @@
       ace:     document.getElementById("ace").value.trim(),
       carrier: document.getElementById("carrier").value,
     };
+  }
+
+  // ── Force Cancel logic ──────────────────────────────────────────────────
+  const abortControllers = {};
+
+  function showCancelBtn(id) {
+    const btn = document.getElementById(id);
+    if (btn) btn.style.display = "inline-block";
+  }
+  function hideCancelBtn(id) {
+    const btn = document.getElementById(id);
+    if (btn) btn.style.display = "none";
+  }
+
+  async function forceCancel(feature) {
+    // Abort the client-side fetch
+    if (abortControllers[feature]) {
+      abortControllers[feature].abort();
+      delete abortControllers[feature];
+    }
+    // Tell the server to kill any running child process
+    try { await fetch("/api/cancel", { method: "POST" }); } catch (_) {}
+    setAllButtons(false);
+    hideCancelBtn("cancelLookup");
+    hideCancelBtn("cancelBooking");
+    hideCancelBtn("cancelFullFlow");
+    hideCancelBtn("cancelEvents");
+
+    // Show cancelled message in the appropriate result area
+    const resultMap = {
+      lookup: "lookupResult",
+      booking: "bookingResult",
+      fullFlow: "fullFlowResult",
+    };
+    const resultId = resultMap[feature];
+    if (resultId) {
+      const div = document.getElementById(resultId);
+      if (div) {
+        div.style.display = "block";
+        div.innerHTML =
+          `<div class="result-item error" style="margin-top:14px">` +
+            `<div class="result-icon">⛔</div>` +
+            `<div class="result-body">` +
+              `<div class="result-label">Cancelled by user</div>` +
+              `<div class="result-error" style="margin-top:4px">Operation was force-cancelled.</div>` +
+            `</div>` +
+          `</div>`;
+      }
+    }
   }
 
   function setAllButtons(disabled) {
@@ -758,22 +829,25 @@
   async function generateOne(endpoint, label) {
     const inputs = getInputs();
     setAllButtons(true);
+    showCancelBtn("cancelEvents");
+    abortControllers.events = new AbortController();
     const rowId = endpoint + "-" + Date.now();
     addRow(rowId, label, "generating");
     try {
-      // Short pause so user sees "Generating" step before uploading
       const res = await fetch("/api/generate/" + endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(inputs),
+        signal: abortControllers.events.signal,
       });
-      // Briefly show uploading step
       setRowStep(rowId, label, "uploading");
       await new Promise(r => setTimeout(r, 300));
       updateRow(rowId, label, await res.json().catch(() => ({ ok: false, error: "Invalid response" })));
     } catch (e) {
-      updateRow(rowId, label, { ok: false, error: e.message });
+      if (e.name !== "AbortError") updateRow(rowId, label, { ok: false, error: e.message });
     } finally {
+      delete abortControllers.events;
+      hideCancelBtn("cancelEvents");
       setAllButtons(false);
     }
   }
@@ -783,6 +857,8 @@
   async function generateAll() {
     const inputs = getInputs();
     setAllButtons(true);
+    showCancelBtn("cancelEvents");
+    abortControllers.events = new AbortController();
 
     const messages = [
       { endpoint: "vbkcon",    label: "VBKCON"            },
@@ -793,28 +869,33 @@
       { endpoint: "asn-padex", label: "ASN PADEX"           },
     ];
 
-    // Pre-create all rows as Queued
     messages.forEach(m => addRow(m.endpoint, m.label, "queued"));
 
     for (const m of messages) {
-      // Move current row to Generating
+      if (abortControllers.events && abortControllers.events.signal.aborted) break;
       setRowStep(m.endpoint, m.label, "generating");
       try {
         const res = await fetch("/api/generate/" + m.endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(inputs),
+          signal: abortControllers.events ? abortControllers.events.signal : undefined,
         });
-        // Show Uploading step briefly
         setRowStep(m.endpoint, m.label, "uploading");
         await new Promise(r => setTimeout(r, 350));
         const data = await res.json();
         updateRow(m.endpoint, m.label, data);
       } catch (e) {
+        if (e.name === "AbortError") {
+          updateRow(m.endpoint, m.label, { ok: false, error: "Cancelled" });
+          break;
+        }
         updateRow(m.endpoint, m.label, { ok: false, error: e.message });
       }
     }
 
+    delete abortControllers.events;
+    hideCancelBtn("cancelEvents");
     setAllButtons(false);
   }
 
@@ -902,6 +983,8 @@
     const startedAt = Date.now();
     let progressInterval;
     setAllButtons(true);
+    showCancelBtn("cancelBooking");
+    abortControllers.booking = new AbortController();
 
     resultDiv.style.display = "block";
     renderBookingLoading(resultDiv, startedAt, modeLabel);
@@ -912,6 +995,7 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ asn }),
+        signal: abortControllers.booking.signal,
       });
       const data = await res.json();
 
@@ -995,6 +1079,8 @@
       }
     } finally {
       clearInterval(progressInterval);
+      delete abortControllers.booking;
+      hideCancelBtn("cancelBooking");
       setAllButtons(false);
     }
   }
@@ -1117,6 +1203,8 @@
     const startedAt = Date.now();
     btn.disabled = true;
     setAllButtons(true);
+    showCancelBtn("cancelLookup");
+    abortControllers.lookup = new AbortController();
     resultDiv.style.display = "block";
 
     // Show loading – all ASNs searched together in one request
@@ -1138,11 +1226,11 @@
     progressInterval = setInterval(renderLoading, 1000);
 
     try {
-      // Send all ASNs as the raw input to preserve the exact format for ASOS Order Search
       const res = await fetch("/api/asn-lookup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ asn: raw }),
+        signal: abortControllers.lookup.signal,
       });
       const data = await res.json();
       clearInterval(progressInterval);
@@ -1198,6 +1286,8 @@
         `</div>`;
     } finally {
       clearInterval(progressInterval);
+      delete abortControllers.lookup;
+      hideCancelBtn("cancelLookup");
       btn.disabled = false;
       setAllButtons(false);
     }
@@ -1249,6 +1339,8 @@
     const resultDiv = document.getElementById("fullFlowResult");
     const startedAt = Date.now();
     setAllButtons(true);
+    showCancelBtn("cancelFullFlow");
+    abortControllers.fullFlow = new AbortController();
     resultDiv.style.display = "block";
 
     const renderLoading = () => {
@@ -1272,6 +1364,7 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ asn }),
+        signal: abortControllers.fullFlow.signal,
       });
       const data = await res.json();
 
@@ -1372,6 +1465,8 @@
         `</div>`;
     } finally {
       clearInterval(progressInterval);
+      delete abortControllers.fullFlow;
+      hideCancelBtn("cancelFullFlow");
       setAllButtons(false);
     }
   }
