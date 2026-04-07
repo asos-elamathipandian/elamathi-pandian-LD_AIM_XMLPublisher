@@ -146,6 +146,7 @@
     .btn-padex    { background: #16a085; }
     .btn-feed     { background: #2980b9; }
     .btn-gpm      { background: #d35400; }
+    .btn-po       { background: #8e44ad; }
 
     .btn-label-sub {
       display: block;
@@ -660,6 +661,10 @@
       <button class="btn-msg btn-gpm" onclick="generateOne('gpm', 'SKU Re-trigger (GPM)')">
         SKU Re-trigger
         <span class="btn-label-sub">Requires: SKU (comma-sep), Option ID</span>
+      </button>
+      <button class="btn-msg btn-po" onclick="generateOne('po-feed', 'PO Feed')">
+        PO Feed
+        <span class="btn-label-sub">Requires: PO, SKU, SKU Qty, Option ID, Carrier</span>
       </button>
     </div>
   </div>

@@ -13,6 +13,7 @@ const { writeAsnRcvFile } = require("./asn-rcv");
 const { writeAsnPadexFile } = require("./asn-padex");
 const { writeAsnFeedFile } = require("./asn-feed");
 const { writeGpmFile } = require("./gpm");
+const { writePoFeedFile } = require("./po-feed");
 const { uploadFileToSftp } = require("./sftp");
 const { buildSftpConfigFromEnv } = require("./sftp-config");
 const {
@@ -73,6 +74,15 @@ const asnFeedInputSchema = z.object({
 const gpmInputSchema = z.object({
   sku: z.string().min(1, "sku is required"),
   optionId: z.string().min(1, "optionId is required"),
+  uploadToSftp: z.boolean().optional().default(true),
+});
+
+const poFeedInputSchema = z.object({
+  po: z.string().min(1, "po is required"),
+  sku: z.string().min(1, "sku is required"),
+  skuQty: z.string().optional().default("1"),
+  optionId: z.string().min(1, "optionId is required"),
+  carrier: z.string().optional().default("DT"),
   uploadToSftp: z.boolean().optional().default(true),
 });
 
@@ -303,6 +313,44 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["sku", "optionId"],
         },
       },
+      {
+        name: "generate_po_feed",
+        description:
+          "Generate a PO Feed (850) XML file from PO, SKU, SKU Qty, and Carrier and optionally upload it to SFTP.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            po: {
+              type: "string",
+              description: "PO value used for Order Key and OrderID",
+            },
+            sku: {
+              type: "string",
+              description: "SKU value used for LineItem Key and SK Attribute (comma-separated for multiple)",
+            },
+            skuQty: {
+              type: "string",
+              description: "SKU quantity for each line item (single or comma-separated)",
+              default: "1",
+            },
+            optionId: {
+              type: "string",
+              description: "Option ID used for PT Reference in each LineItem",
+            },
+            carrier: {
+              type: "string",
+              description: "Carrier for CA TradePartner. Allowed: DT, Maersk, Advanced",
+              default: "DT",
+            },
+            uploadToSftp: {
+              type: "boolean",
+              description: "If true, upload generated file to configured SFTP path",
+              default: true,
+            },
+          },
+          required: ["po", "sku", "optionId"],
+        },
+      },
     ],
   };
 });
@@ -316,7 +364,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     request.params.name !== "generate_asn_rcv" &&
     request.params.name !== "generate_asn_padex" &&
     request.params.name !== "generate_asn_feed" &&
-    request.params.name !== "generate_gpm"
+    request.params.name !== "generate_gpm" &&
+    request.params.name !== "generate_po_feed"
   ) {
     throw new Error(`Unknown tool: ${request.params.name}`);
   }
@@ -596,6 +645,51 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     const { sku, optionId, uploadToSftp } = parsedGpm.data;
     const generated = await writeGpmFile({ sku, optionId, outputDir });
+
+    const response = {
+      ok: true,
+      fileName: generated.fileName,
+      filePath: generated.filePath,
+      uploaded: false,
+    };
+
+    if (uploadToSftp) {
+      const sftpConfig = buildSftpConfigFromEnv(process.env);
+      const uploadResult = await uploadFileToSftp({
+        localFilePath: generated.filePath,
+        remoteDir: sftpConfig.remoteDir,
+        connectionOptions: sftpConfig.connectionOptions,
+      });
+      response.uploaded = true;
+      response.remotePath = uploadResult.remotePath;
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response, null, 2),
+        },
+      ],
+    };
+  }
+
+  if (request.params.name === "generate_po_feed") {
+    const parsedPo = poFeedInputSchema.safeParse(request.params.arguments ?? {});
+    if (!parsedPo.success) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ ok: false, error: parsedPo.error.flatten() }, null, 2),
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    const { po, sku, skuQty, optionId, carrier, uploadToSftp } = parsedPo.data;
+    const generated = await writePoFeedFile({ po, sku, skuQty, optionId, carrier, outputDir });
 
     const response = {
       ok: true,

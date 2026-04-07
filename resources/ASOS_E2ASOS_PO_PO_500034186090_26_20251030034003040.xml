@@ -1,0 +1,61 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<XMLBundle>
+<XMLTransmission CtrlNumber="20251030102429" Receiver="E2ASOS" Sender="ASOS" Timestamp="20251030 102429"><!--ctrl number & timestamp can be current date time-->
+<XMLGroup CtrlNumber="20251030102429" GroupType="BP" IncludedMessages="1"><!--ctrl number can be current date time-->
+<XMLTransaction CtrlNumber="500034186090" TransactionType="BPM-850"><!--ctrl number can be current date time-->
+<BpMessage MessageType="850" PurposeCd="05">
+<Order Key="500034186090" OrderType="PO"> <!--Input PO-->
+<OrderID>500034186090</OrderID> <!--copy Input PO-->
+<Reference RefTypeCd="8X" SourceRefTypeCd="128">D</Reference>
+<Reference RefTypeCd="ACC" SourceRefTypeCd="128">A</Reference>
+<Reference RefTypeCd="ID" SourceRefTypeCd="128">23084788</Reference>
+<Reference RefTypeCd="SACHL" SourceRefTypeCd="128">R</Reference>
+<Reference RefTypeCd="WHFLG" SourceRefTypeCd="128">N</Reference>
+<Date DateTypeCd="275" TimeZone="UT">20251030 000000</Date> <!--PO Date, can be current date-->
+<Date DateTypeCd="579" TimeZone="UT">20251129</Date> <!--Requested Ship Date, can be current date +30 days-->
+<Date DateTypeCd="574" TimeZone="UT">20251129</Date> <!--Requested Delivery Date, can be current date +30 days-->
+<Date DateTypeCd="576" TimeZone="UT">20251213</Date> <!--Promised Delivery Date, can be current date +45 days-->
+<Date DateTypeCd="065" TimeZone="UT">20260124</Date> <!--Latest Ship Date, can be current date +90 days-->
+<Date DateTypeCd="274" TimeZone="UT">20251214</Date> <!--Latest Delivery Date, can be current date +60 days-->
+<FOBInstructions>
+<TransTermsCd Qualifier="01">DDP</TransTermsCd>
+</FOBInstructions>
+<TradePartner RoleCd="SU">
+<TradePartnerName>XXX - SHIRE TEXTILES LTD</TradePartnerName>
+<TradePartnerID Qualifier="93">1100001190</TradePartnerID>
+</TradePartner>
+<TradePartner RoleCd="CA">
+<TradePartnerName>Allport Cargo Services</TradePartnerName> <!--Input Carrier Name-->
+<TradePartnerID Qualifier="93">2</TradePartnerID> <!--If carrier is European non carrier/DT then Id is 3, Maersk is 12, Advanced Processing is 5 -->
+</TradePartner>
+<TradePartner RoleCd="FA">
+<TradePartnerName>Dummy Factory</TradePartnerName>
+<TradePartnerID Qualifier="93">9999</TradePartnerID>
+</TradePartner>
+<TradePartner RoleCd="FD">
+<TradePartnerName>FC01 Barnsley</TradePartnerName>
+<TradePartnerID Qualifier="93">FC01</TradePartnerID>
+</TradePartner>
+<TradePartner RoleCd="F1">
+<TradePartnerName>FC01 Barnsley</TradePartnerName>
+<TradePartnerID Qualifier="93">FC01</TradePartnerID>
+</TradePartner>
+<TradePartner RoleCd="SL">
+<TradePartnerName>UNITED KINGDOM</TradePartnerName>
+<TradePartnerID Qualifier="93">UNIUN</TradePartnerID>
+</TradePartner>
+<LineItem Key="148640993"> <!--Input SKU-->
+<Attribute AttributeTypeCd="SK">148640993</Attribute> <!--Input SKU-->
+<Mode>30</Mode>
+<Reference RefTypeCd="PT" SourceRefTypeCd="128">148640986</Reference>  <!--Input Option-->
+<Reference RefTypeCd="VP" SourceRefTypeCd="128">TEST FOR REC</Reference>
+<Price CurrencyCd="GBP" Qualifier="UCP">94.0500</Price>
+<Price CurrencyCd="GBP" Qualifier="RTL">297.0000</Price>
+<Measure Qualifier="PO102" SourceUOMCd="355" UOMCd="UN">40.0000</Measure> <!--Input SKU Qty-->
+</LineItem>
+</Order>
+</BpMessage>
+</XMLTransaction>
+</XMLGroup>
+</XMLTransmission>
+</XMLBundle>

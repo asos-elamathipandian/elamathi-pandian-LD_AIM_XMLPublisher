@@ -12,6 +12,7 @@ const { writeAsnRcvFile } = require("./asn-rcv");
 const { writeAsnPadexFile } = require("./asn-padex");
 const { writeAsnFeedFile } = require("./asn-feed");
 const { writeGpmFile } = require("./gpm");
+const { writePoFeedFile } = require("./po-feed");
 const { uploadFileToSftp } = require("./sftp");
 const { buildSftpConfigFromEnv } = require("./sftp-config");
 const {
@@ -286,6 +287,20 @@ app.post("/api/generate/gpm", async (req, res) => {
     }
 
     // Single SKU
+    const remotePath = await upload(gen.filePath);
+    res.json({ ok: true, fileName: gen.fileName, uploaded: true, remotePath });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post("/api/generate/po-feed", async (req, res) => {
+  const err = validate(req.body, ["po", "sku", "optionId"]);
+  if (err) return res.status(400).json({ ok: false, error: err });
+  try {
+    const { po, sku, skuQty = "1", optionId, carrier = "DT" } = req.body;
+    const outputDir = getOutputDir(process.env);
+    const gen = await writePoFeedFile({ po, sku, skuQty, optionId, carrier, outputDir });
     const remotePath = await upload(gen.filePath);
     res.json({ ok: true, fileName: gen.fileName, uploaded: true, remotePath });
   } catch (e) {
