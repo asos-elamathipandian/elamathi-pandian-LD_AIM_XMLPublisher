@@ -145,6 +145,7 @@
     .btn-rcv      { background: #e94560; }
     .btn-padex    { background: #16a085; }
     .btn-feed     { background: #2980b9; }
+    .btn-gpm      { background: #d35400; }
 
     .btn-label-sub {
       display: block;
@@ -603,6 +604,11 @@
         <span class="field-hint">Match SKU order: e.g. <strong>100,50</strong> for two SKUs</span>
       </div>
       <div class="form-group">
+        <label for="optionId">Option ID</label>
+        <input id="optionId" type="text" placeholder="e.g. 149409035" />
+        <span class="field-hint">For GPM / SKU Re-trigger only</span>
+      </div>
+      <div class="form-group">
         <label for="ace">ACE</label>
         <input id="ace" type="text" placeholder="e.g. VB-0000002052" />
       </div>
@@ -651,6 +657,10 @@
         ASN Feed
         <span class="btn-label-sub">Requires: ASN, PO, SKU, SKU Qty</span>
       </button>
+      <button class="btn-msg btn-gpm" onclick="generateOne('gpm', 'SKU Re-trigger (GPM)')">
+        SKU Re-trigger
+        <span class="btn-label-sub">Requires: SKU (comma-sep), Option ID</span>
+      </button>
     </div>
   </div>
 
@@ -668,12 +678,13 @@
 <script>
   function getInputs() {
     return {
-      asn:     document.getElementById("asn").value.trim(),
-      po:      document.getElementById("po").value.trim(),
-      sku:     document.getElementById("sku").value.trim(),
-      skuQty:  document.getElementById("skuQty").value.trim() || "1",
-      ace:     document.getElementById("ace").value.trim(),
-      carrier: document.getElementById("carrier").value,
+      asn:      document.getElementById("asn").value.trim(),
+      po:       document.getElementById("po").value.trim(),
+      sku:      document.getElementById("sku").value.trim(),
+      skuQty:   document.getElementById("skuQty").value.trim() || "1",
+      optionId: document.getElementById("optionId").value.trim(),
+      ace:      document.getElementById("ace").value.trim(),
+      carrier:  document.getElementById("carrier").value,
     };
   }
 
@@ -793,7 +804,7 @@
     resetUIState();
 
     // Clear all input fields
-    ["lookupAsn", "bookingAsn", "fullFlowAsn", "asn", "po", "sku", "ace"].forEach(id => {
+    ["lookupAsn", "bookingAsn", "fullFlowAsn", "asn", "po", "sku", "optionId", "ace"].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = "";
     });
@@ -936,6 +947,18 @@
     const div = document.getElementById("row-" + id);
     if (!div) return;
     if (result.ok) {
+      // Multi-file result (e.g. GPM with multiple SKUs)
+      let filesHtml = "";
+      if (result.files && result.files.length > 0) {
+        filesHtml = result.files.map(f =>
+          `<div class="result-filename" style="margin-top:4px">${f.fileName}</div>` +
+          `<div class="result-remote">📤 ${f.remotePath || ""}</div>`
+        ).join("");
+      } else {
+        filesHtml =
+          `<div class="result-filename" style="margin-top:6px">${result.fileName}</div>` +
+          `<div class="result-remote">📤 ${result.remotePath || ""}</div>`;
+      }
       // Show final done steps then file detail
       div.className = "result-item success";
       div.innerHTML =
@@ -948,8 +971,7 @@
               `<span class="step done">${s.label}</span>`
             ).join("") +
           `</div>` +
-          `<div class="result-filename" style="margin-top:6px">${result.fileName}</div>` +
-          `<div class="result-remote">📤 ${result.remotePath || ""}</div>` +
+          filesHtml +
           `<div class="result-remote" style="color:#6b7280;margin-top:3px">⏱ Completed in ${elapsedSec(id)}</div>` +
         `</div>`;
     } else {

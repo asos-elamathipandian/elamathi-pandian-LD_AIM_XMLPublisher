@@ -16,6 +16,7 @@
     "generate:asn-rcv": "node src/run-asn-rcv-once.js",
     "generate:asn-padex": "node src/run-asn-padex-once.js",
     "generate:asn-feed": "node src/run-asn-feed-once.js",
+    "generate:gpm": "node src/run-gpm-once.js",
     "start:ui": "node src/web-server.js",
     "test": "echo \"No tests configured\""
   },

@@ -11,6 +11,7 @@ const { writeAsnFcbkcFile } = require("./asn-fcbkc");
 const { writeAsnRcvFile } = require("./asn-rcv");
 const { writeAsnPadexFile } = require("./asn-padex");
 const { writeAsnFeedFile } = require("./asn-feed");
+const { writeGpmFile } = require("./gpm");
 const { uploadFileToSftp } = require("./sftp");
 const { buildSftpConfigFromEnv } = require("./sftp-config");
 const {
@@ -259,6 +260,32 @@ app.post("/api/generate/asn-feed", async (req, res) => {
     const { asn, po, sku, skuQty = "1" } = req.body;
     const outputDir = getOutputDir(process.env);
     const gen = await writeAsnFeedFile({ asn, po, sku, skuQty, outputDir });
+    const remotePath = await upload(gen.filePath);
+    res.json({ ok: true, fileName: gen.fileName, uploaded: true, remotePath });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post("/api/generate/gpm", async (req, res) => {
+  const err = validate(req.body, ["sku", "optionId"]);
+  if (err) return res.status(400).json({ ok: false, error: err });
+  try {
+    const { sku, optionId } = req.body;
+    const outputDir = getOutputDir(process.env);
+    const gen = await writeGpmFile({ sku, optionId, outputDir });
+
+    // Multiple SKUs → multiple files
+    if (gen.files) {
+      const uploaded = [];
+      for (const f of gen.files) {
+        const remotePath = await upload(f.filePath);
+        uploaded.push({ fileName: f.fileName, sku: f.sku, uploaded: true, remotePath });
+      }
+      return res.json({ ok: true, files: uploaded });
+    }
+
+    // Single SKU
     const remotePath = await upload(gen.filePath);
     res.json({ ok: true, fileName: gen.fileName, uploaded: true, remotePath });
   } catch (e) {
