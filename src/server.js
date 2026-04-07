@@ -11,6 +11,7 @@ const { writeBulkStatusFile } = require("./bulk-status");
 const { writeAsnFcbkcFile } = require("./asn-fcbkc");
 const { writeAsnRcvFile } = require("./asn-rcv");
 const { writeAsnPadexFile } = require("./asn-padex");
+const { writeAsnFeedFile } = require("./asn-feed");
 const { uploadFileToSftp } = require("./sftp");
 const { buildSftpConfigFromEnv } = require("./sftp-config");
 const {
@@ -57,6 +58,14 @@ const asnPadexInputSchema = z.object({
   asn: z.string().min(1, "asn is required"),
   po: z.string().min(1, "po is required"),
   sku: z.string().min(1, "sku is required"),
+  uploadToSftp: z.boolean().optional().default(true),
+});
+
+const asnFeedInputSchema = z.object({
+  asn: z.string().min(1, "asn is required"),
+  po: z.string().min(1, "po is required"),
+  sku: z.string().min(1, "sku is required"),
+  skuQty: z.string().optional().default("1"),
   uploadToSftp: z.boolean().optional().default(true),
 });
 
@@ -230,6 +239,39 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["asn", "po", "sku"],
         },
       },
+      {
+        name: "generate_asn_feed",
+        description:
+          "Generate an ASN Feed (856) XML file from ASN, PO, SKU and SKU Qty and optionally upload it to SFTP.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            asn: {
+              type: "string",
+              description: "ASN value used for Document Key and DocumentID",
+            },
+            po: {
+              type: "string",
+              description: "PO value used for Order Key and OrderID",
+            },
+            sku: {
+              type: "string",
+              description: "SKU value used for LineItem Key and SK Attribute (comma-separated for multiple)",
+            },
+            skuQty: {
+              type: "string",
+              description: "SKU quantity for each line item (single or comma-separated)",
+              default: "1",
+            },
+            uploadToSftp: {
+              type: "boolean",
+              description: "If true, upload generated file to configured SFTP path",
+              default: true,
+            },
+          },
+          required: ["asn", "po", "sku"],
+        },
+      },
     ],
   };
 });
@@ -241,7 +283,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     request.params.name !== "generate_bulk_status" &&
     request.params.name !== "generate_asn_fcbkc" &&
     request.params.name !== "generate_asn_rcv" &&
-    request.params.name !== "generate_asn_padex"
+    request.params.name !== "generate_asn_padex" &&
+    request.params.name !== "generate_asn_feed"
   ) {
     throw new Error(`Unknown tool: ${request.params.name}`);
   }
@@ -476,6 +519,51 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     const { asn, po, sku, uploadToSftp } = parsedPadex.data;
     const generated = await writeAsnPadexFile({ asn, po, sku, skuQty: "1", outputDir });
+
+    const response = {
+      ok: true,
+      fileName: generated.fileName,
+      filePath: generated.filePath,
+      uploaded: false,
+    };
+
+    if (uploadToSftp) {
+      const sftpConfig = buildSftpConfigFromEnv(process.env);
+      const uploadResult = await uploadFileToSftp({
+        localFilePath: generated.filePath,
+        remoteDir: sftpConfig.remoteDir,
+        connectionOptions: sftpConfig.connectionOptions,
+      });
+      response.uploaded = true;
+      response.remotePath = uploadResult.remotePath;
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response, null, 2),
+        },
+      ],
+    };
+  }
+
+  if (request.params.name === "generate_asn_feed") {
+    const parsedFeed = asnFeedInputSchema.safeParse(request.params.arguments ?? {});
+    if (!parsedFeed.success) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ ok: false, error: parsedFeed.error.flatten() }, null, 2),
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    const { asn, po, sku, skuQty, uploadToSftp } = parsedFeed.data;
+    const generated = await writeAsnFeedFile({ asn, po, sku, skuQty, outputDir });
 
     const response = {
       ok: true,

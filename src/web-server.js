@@ -10,6 +10,7 @@ const { writeCarrierShipmentFile } = require("./carrier-shipment");
 const { writeAsnFcbkcFile } = require("./asn-fcbkc");
 const { writeAsnRcvFile } = require("./asn-rcv");
 const { writeAsnPadexFile } = require("./asn-padex");
+const { writeAsnFeedFile } = require("./asn-feed");
 const { uploadFileToSftp } = require("./sftp");
 const { buildSftpConfigFromEnv } = require("./sftp-config");
 const {
@@ -251,7 +252,21 @@ app.post("/api/generate/asn-padex", async (req, res) => {
   }
 });
 
-// ── Generate All (order: VBKCON → BST → Shipment → FCBKC → RCV → PADEX) ─────
+app.post("/api/generate/asn-feed", async (req, res) => {
+  const err = validate(req.body, ["asn", "po", "sku"]);
+  if (err) return res.status(400).json({ ok: false, error: err });
+  try {
+    const { asn, po, sku, skuQty = "1" } = req.body;
+    const outputDir = getOutputDir(process.env);
+    const gen = await writeAsnFeedFile({ asn, po, sku, skuQty, outputDir });
+    const remotePath = await upload(gen.filePath);
+    res.json({ ok: true, fileName: gen.fileName, uploaded: true, remotePath });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Generate All (order: VBKCON → BST → Shipment → FCBKC → RCV → PADEX → ASN Feed) ─────
 
 app.post("/api/generate/all", async (req, res) => {
   const err = validate(req.body, ["asn", "po", "sku", "ace"]);

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<XMLBundle>
+  <XMLTransmission CtrlNumber="mDj0eTl0SugNkg2wjTag" Receiver="E2ASOS" Sender="ASOS" Timestamp="20260407 101000"> <!-- ctrlnumber can be unique, timestamp can be current system time-->
+    <XMLGroup CtrlNumber="FC3AkzdmHE6wgaEbI2vgig" GroupType="BP" IncludedMessages="1"> <!-- ctrlnumber can be unique-->
+      <XMLTransaction CtrlNumber="dDMyh1yFF0CV2WTqsw4PwQ" TransactionType="BPM-856"> <!-- ctrlnumber can be unique-->
+        <BpMessage MessageType="856" PurposeCd="04">
+          <Mode>30</Mode>
+          <Reference RefTypeCd="SHTYPE" SourceRefTypeCd="128">ASN</Reference>
+          <Reference RefTypeCd="SACHL" SourceRefTypeCd="128">R</Reference>
+          <Reference RefTypeCd="WHFLG" SourceRefTypeCd="128">N</Reference>
+          <Reference RefTypeCd="ASNTYPE" SourceRefTypeCd="128">SPEED TO MARKET</Reference>
+          <Reference RefTypeCd="PSCORE" SourceRefTypeCd="128">-1</Reference>
+          <Date TimeZone="UT" DateTypeCd="BSN03">20260407 100946</Date> <!-- date can be today date--> 
+          <Date TimeZone="UT" DateTypeCd="579">20260506 230000</Date> <!-- date can be future date say +15 days-->
+          <Date TimeZone="UT" DateTypeCd="AG_FRST">20260516 230000</Date> <!-- date can be  579 date above + 10 days-->
+          <Date TimeZone="UT" DateTypeCd="274">20260507 230000</Date> <!-- date can be 579 date + 1 day-->
+          <Location LocTypeCd="DE">
+            <LocationID Qualifier="UN">GBBSY</LocationID>
+          </Location>
+          <TradePartner RoleCd="SU">
+            <TradePartnerName>Difuzed - FOB</TradePartnerName>
+            <TradePartnerID Qualifier="93">2002900003</TradePartnerID>
+          </TradePartner>
+          <TradePartner RoleCd="FD">
+            <TradePartnerName>FC01 Barnsley</TradePartnerName>
+            <TradePartnerID Qualifier="93">FC01</TradePartnerID>
+            <TradePartnerAddress>
+              <Street />
+              <City>Barnsley</City>
+              <StateProvinceCd />
+              <PostalCd />
+              <CountryCd>UK</CountryCd>
+            </TradePartnerAddress>
+          </TradePartner>
+          <TradePartner RoleCd="FS">
+            <TradePartnerName>FC01 Barnsley</TradePartnerName>
+            <TradePartnerID Qualifier="93">FC01</TradePartnerID>
+            <TradePartnerAddress>
+              <Street />
+              <City>Barnsley</City>
+              <StateProvinceCd />
+              <PostalCd />
+              <CountryCd>UK</CountryCd>
+            </TradePartnerAddress>
+          </TradePartner>
+          <TradePartner RoleCd="SL">
+            <TradePartnerName>PORTUGAL OPORTO</TradePartnerName>
+            <TradePartnerID Qualifier="93">POROP</TradePartnerID>
+          </TradePartner>
+          <Document DocType="SHIP" Key="49870000001317"> <!--Input ASN-->
+            <DocumentID>49870000001317</DocumentID>  <!--Input ASN-->
+            <Order Key="500034220972" OrderType="PO">  <!--Input PO-->
+              <OrderID>500034220972</OrderID> <!--Input PO-->
+              <LineItem Key="148609059"><!--Input SKU -->
+                <Attribute AttributeTypeCd="SK">148609059</Attribute><!--Input SKU -->
+                <Measure Qualifier="SN102" SourceUOMCd="355" UOMCd="UN">100</Measure> <!--Input Quantity-->
+              </LineItem>
+            </Order>
+          </Document>
+        </BpMessage>
+      </XMLTransaction>
+    </XMLGroup>
+  </XMLTransmission>
+</XMLBundle>
