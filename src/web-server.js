@@ -918,6 +918,138 @@ app.post("/api/cancel", (req, res) => {
   }
 });
 
+// ── ADO Status Email (Preview & Send) ─────────────────────────────────────────
+
+const ADO_REPORT_DIR = path.join(
+  process.env.USERPROFILE || "C:\\Users\\elamathi.pandian",
+  "RaiseADOBugs"
+);
+const ADO_SCRIPT = path.join(ADO_REPORT_DIR, "Run-Report.ps1");
+
+function runAdoReport(previewOnly) {
+  return new Promise((resolve) => {
+    if (!fs.existsSync(ADO_SCRIPT)) {
+      return resolve({ ok: false, error: `Script not found: ${ADO_SCRIPT}` });
+    }
+    const args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ADO_SCRIPT];
+    if (previewOnly) args.push("-PreviewOnly");
+
+    const child = spawn("powershell.exe", args, {
+      cwd: ADO_REPORT_DIR, shell: false,
+    });
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => { stdout += d.toString(); });
+    child.stderr.on("data", (d) => { stderr += d.toString(); });
+    child.on("error", (err) => resolve({ ok: false, error: err.message }));
+    child.on("close", (code) => {
+      if (code !== 0) {
+        return resolve({ ok: false, error: stderr || stdout || `Exit code ${code}` });
+      }
+      // Extract report file path from stdout
+      const match = stdout.match(/PREVIEW_PATH=(.+)/);
+      const reportMatch = stdout.match(/Report saved to:\s*(.+)/);
+      const filePath = (match && match[1].trim()) || (reportMatch && reportMatch[1].trim());
+      resolve({ ok: true, stdout, filePath });
+    });
+  });
+}
+
+app.post("/api/preview-status-email", async (req, res) => {
+  try {
+    const result = await runAdoReport(true);
+    if (!result.ok) return res.json(result);
+    if (!result.filePath || !fs.existsSync(result.filePath)) {
+      return res.json({ ok: false, error: "Report file not found" });
+    }
+    const html = fs.readFileSync(result.filePath, "utf8");
+    res.json({ ok: true, html, filePath: result.filePath });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+app.post("/api/send-status-email", async (req, res) => {
+  try {
+    const result = await runAdoReport(false);
+    if (result.ok) {
+      res.json({ ok: true, message: "Status email sent successfully!" });
+    } else {
+      res.json(result);
+    }
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+app.post("/api/send-edited-email", async (req, res) => {
+  try {
+    const { html } = req.body;
+    if (!html) return res.json({ ok: false, error: "No HTML content provided" });
+
+    // Save edited HTML to reports folder
+    const reportsDir = path.join(ADO_REPORT_DIR, "reports");
+    if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
+    const timestamp = new Date().toISOString().replace(/[T:.-]/g, "").slice(0, 15);
+    const reportFile = path.join(reportsDir, `ADO_Report_${timestamp}_edited.html`);
+    fs.writeFileSync(reportFile, html, "utf8");
+
+    // Read config for recipients and subject
+    const configPath = path.join(ADO_REPORT_DIR, "config.json");
+    if (!fs.existsSync(configPath)) {
+      return res.json({ ok: false, error: "config.json not found" });
+    }
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const recipients = (config.Email && config.Email.Recipients) || [];
+    const subject = `${(config.Email && config.Email.Subject) || "ADO Report"} - ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
+
+    if (recipients.length === 0) {
+      return res.json({ ok: false, error: "No recipients configured" });
+    }
+
+    // Build PowerShell to send via Outlook COM
+    const recipientsCmds = recipients.map(r => `$mail.Recipients.Add('${r.replace(/'/g, "''")}') | Out-Null`).join("; ");
+    const psScript = `
+      $htmlBody = Get-Content -Path '${reportFile.replace(/'/g, "''")}' -Raw -Encoding UTF8
+      $outlook = New-Object -ComObject Outlook.Application
+      $mail = $outlook.CreateItem(0)
+      $mail.Subject = '${subject.replace(/'/g, "''")}'
+      $mail.HTMLBody = $htmlBody
+      ${recipientsCmds}
+      $mail.Recipients.ResolveAll() | Out-Null
+      $mail.Send()
+      [System.Runtime.InteropServices.Marshal]::ReleaseComObject($mail) | Out-Null
+      [System.Runtime.InteropServices.Marshal]::ReleaseComObject($outlook) | Out-Null
+      Write-Host 'EMAIL_SENT_OK'
+    `;
+
+    const result = await new Promise((resolve) => {
+      const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psScript], {
+        cwd: ADO_REPORT_DIR, shell: false,
+      });
+      let stdout = "", stderr = "";
+      child.stdout.on("data", (d) => { stdout += d.toString(); });
+      child.stderr.on("data", (d) => { stderr += d.toString(); });
+      child.on("error", (err) => resolve({ ok: false, error: err.message }));
+      child.on("close", (code) => {
+        if (code !== 0 || !stdout.includes("EMAIL_SENT_OK")) {
+          return resolve({ ok: false, error: stderr || stdout || `Exit code ${code}` });
+        }
+        resolve({ ok: true });
+      });
+    });
+
+    if (result.ok) {
+      res.json({ ok: true, message: "Edited email sent successfully!" });
+    } else {
+      res.json(result);
+    }
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 // Safety net: log unhandled errors without crashing the server
