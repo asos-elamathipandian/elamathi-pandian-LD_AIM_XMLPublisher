@@ -25,9 +25,84 @@ If you only use CLI commands, MCP installation is not required.
 
 ## Prerequisites
 
-- Node.js 18+
-- npm
-- SFTP credentials, or a private key with optional passphrase
+- Node.js 18+ ([download](https://nodejs.org/))
+- npm (included with Node.js)
+- SFTP credentials, or a private key (`.ppk`) with optional passphrase
+- Git access to the ADO repository
+
+## Getting Started (For New Team Members)
+
+Follow these one-time steps to set up the tool on your machine:
+
+1. **Install Node.js 18+** from [nodejs.org](https://nodejs.org/). Verify with:
+
+   ```bash
+   node -v
+   ```
+
+2. **Clone the repository** from Azure DevOps:
+
+   ```bash
+   git clone <ADO-repo-URL>
+   cd XMLGeneratorUploader
+   ```
+
+3. **Install dependencies:**
+
+   ```bash
+   npm install
+   ```
+
+4. **Create your local environment file** (SFTP connection details):
+
+   ```bash
+   copy config\.env.example config\.env
+   ```
+
+   Open `config/.env` and fill in the SFTP credentials (host, username, private key path or password, remote directory). Ask the team lead if you don't have these.
+
+5. **Place the SFTP private key** (`.ppk` file) inside the `config/` folder, then set `SFTP_PRIVATE_KEY_PATH` in `config/.env` to point to it (e.g., `config/asos-david-ayres.ppk`).
+
+6. **Create your local inputs file** (optional — provides default values so you don't have to type them every time):
+
+   ```bash
+   copy config\inputs.example.json config\inputs.json
+   ```
+
+   Update `config/inputs.json` with your preferred default ASN, PO, SKU, etc.
+
+### Using the Web UI
+
+Run the web server:
+
+```bash
+npm start
+```
+
+Open your browser to **http://localhost:3000** — fill in the form and click the buttons to generate and upload XML files.
+
+> **Note:** The server runs as long as the terminal is open. To keep it running in the background without a terminal window, you can use [pm2](https://pm2.keymetrics.io/):
+>
+> ```bash
+> npm install -g pm2
+> pm2 start src/web-server.js --name xml-toolkit
+> ```
+>
+> `pm2 stop xml-toolkit` to stop, `pm2 restart xml-toolkit` after pulling updates.
+
+### Using the CLI
+
+Run any generator directly from the terminal (no browser needed):
+
+```bash
+npm run generate:once -- <ACE>
+npm run generate:shipment -- <ASN> <PO> <SKU>
+npm run generate:bst -- <ASN>
+```
+
+### Using MCP Tools (VS Code Copilot)
+
+See the [MCP Installation](#mcp-installation-required-for-mcp-tool-usage) section below.
 
 ## Project Structure
 
@@ -37,30 +112,6 @@ If you only use CLI commands, MCP installation is not required.
 - `output/`: generated XML output at runtime
 - `resources/`: source/sample XML resources
 - `state/`: runtime counter and sequence files created locally at runtime
-
-## Setup
-
-1. Install dependencies:
-
-```bash
-npm install
-```
-
-2. Create a local environment file:
-
-```bash
-copy config\.env.example config\.env
-```
-
-3. Create a local inputs file for CLI usage:
-
-```bash
-copy config\inputs.example.json config\inputs.json
-```
-
-4. Update `config/.env` with your SFTP details.
-
-5. Update `config/inputs.json` with the local default values you want to use.
 
 ## MCP Installation (Required For MCP Tool Usage)
 
