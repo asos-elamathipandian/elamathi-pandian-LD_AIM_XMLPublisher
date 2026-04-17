@@ -24,6 +24,11 @@ const {
 
 loadEnvironment();
 
+// Ensure required directories exist (they are gitignored so won't be present on Azure)
+[getOutputDir(), path.resolve(process.cwd(), "state"), path.resolve(process.cwd(), "config")].forEach((dir) => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "public")));

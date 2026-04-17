@@ -30,6 +30,12 @@ function buildSftpConfigFromEnv(env) {
     if (passphrase) {
       connectionOptions.passphrase = passphrase;
     }
+  } else if (env.SFTP_PRIVATE_KEY_CONTENT) {
+    // Support inline key content (for Azure App Service / cloud environments)
+    connectionOptions.privateKey = env.SFTP_PRIVATE_KEY_CONTENT;
+    if (passphrase) {
+      connectionOptions.passphrase = passphrase;
+    }
   } else if (password) {
     connectionOptions.password = password;
   } else {
