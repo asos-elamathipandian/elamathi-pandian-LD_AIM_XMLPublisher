@@ -1,5 +1,10 @@
 "use strict";
 
+console.log("[STARTUP] web-server.js loading...");
+console.log("[STARTUP] PORT =", process.env.PORT);
+console.log("[STARTUP] NODE_ENV =", process.env.NODE_ENV);
+console.log("[STARTUP] cwd =", process.cwd());
+
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
@@ -19,19 +24,26 @@ const {
   getAbvCounterFile,
   getCarrierSequenceFile,
   getOutputDir,
+  getStateDir,
   loadEnvironment,
 } = require("./app-config");
 
 loadEnvironment();
 
 // Ensure required directories exist (they are gitignored so won't be present on Azure)
-[getOutputDir(), path.resolve(process.cwd(), "state"), path.resolve(process.cwd(), "config")].forEach((dir) => {
+[getOutputDir(process.env), getStateDir(process.env)].forEach((dir) => {
+  console.log("[STARTUP] Ensuring dir:", dir);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "public")));
+
+// Health check endpoint (useful for Azure probes)
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true, uptime: process.uptime(), pid: process.pid });
+});
 
 const PORT = process.env.PORT || 3000;
 
@@ -925,11 +937,17 @@ app.post("/api/cancel", (req, res) => {
 
 // ── ADO Status Email (Preview & Send) ─────────────────────────────────────────
 
-const ADO_REPORT_DIR = path.join(
-  process.env.USERPROFILE || "C:\\Users\\elamathi.pandian",
+const ADO_REPORT_DIR = process.env.ADO_REPORT_DIR || path.join(
+  process.env.USERPROFILE || process.env.HOME || "/home/site",
   "RaiseADOBugs"
 );
 const ADO_SCRIPT = path.join(ADO_REPORT_DIR, "Run-Report.ps1");
+
+// Expose availability so the UI can disable buttons gracefully
+app.get("/api/ado-status", (req, res) => {
+  const available = fs.existsSync(ADO_SCRIPT);
+  res.json({ available, scriptPath: ADO_SCRIPT });
+});
 
 function runAdoReport(previewOnly) {
   return new Promise((resolve) => {
@@ -1069,8 +1087,10 @@ const server = app.listen(PORT, () => {
   console.log(`\nXML Generator UI  →  http://localhost:${PORT}\n`);
 });
 
-// Allow long-running booking requests (up to 10 minutes)
-server.timeout = 0;              // no socket timeout
-server.requestTimeout = 0;       // no request timeout
-server.headersTimeout = 0;       // no headers timeout
-server.keepAliveTimeout = 620000; // 10+ min keep-alive
+// Allow long-running booking requests (up to 10 minutes) — skip on iisnode (named pipe)
+if (typeof PORT === "number" || /^\d+$/.test(PORT)) {
+  server.timeout = 0;
+  server.requestTimeout = 0;
+  server.headersTimeout = 0;
+  server.keepAliveTimeout = 620000;
+}

@@ -679,12 +679,15 @@
   </div>
 
   <!-- ── Send ADO Status Email ── -->
-  <div class="card" style="background:#e3f2fd; border-left:4px solid #0078D4; position:relative; overflow:hidden;">
+  <div class="card" id="adoEmailCard" style="background:#e3f2fd; border-left:4px solid #0078D4; position:relative; overflow:hidden;">
     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-30deg); font-size:1.8rem; font-weight:900; color:rgba(0,0,0,0.08); white-space:nowrap; pointer-events:none; letter-spacing:0.15em; text-transform:uppercase; z-index:0;">Half Baked</div>
     <div class="card-title" style="color:#0078D4; position:relative; z-index:1;">&#128231; ADO Test Status Email</div>
     <p style="font-size:0.82rem; color:#555; margin:6px 0 12px 0;">
       Preview &amp; send the latest AIM Test Execution Progress &amp; Bug Report email (queries ADO shared queries, test plans/suites).
     </p>
+    <div id="adoUnavailable" style="display:none; padding:10px 14px; background:#fff3cd; border-radius:6px; color:#856404; font-size:0.82rem; font-weight:600; margin-bottom:10px;">
+      &#9888; ADO Email feature is not available in this environment (report script not found on server).
+    </div>
     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
       <button id="btnPreviewEmail" onclick="previewStatusEmail()"
               style="background:#0078D4; color:white; font-weight:600; padding:8px 20px; border:none; border-radius:4px; cursor:pointer;">
@@ -726,6 +729,23 @@
 </main>
 
 <script>
+  // ── Check ADO Email availability on load ───────────────────────────────
+  (async function checkAdoAvailability() {
+    try {
+      const res = await fetch("/api/ado-status");
+      const data = await res.json();
+      if (!data.available) {
+        document.getElementById("adoUnavailable").style.display = "block";
+        document.getElementById("btnPreviewEmail").disabled = true;
+        document.getElementById("btnPreviewEmail").style.opacity = "0.5";
+        document.getElementById("btnPreviewEmail").style.cursor = "not-allowed";
+        document.getElementById("btnSendEmail").disabled = true;
+        document.getElementById("btnSendEmail").style.opacity = "0.5";
+        document.getElementById("btnSendEmail").style.cursor = "not-allowed";
+      }
+    } catch (e) { /* ignore – buttons stay enabled */ }
+  })();
+
   // ── ADO Status Email: Preview & Send ───────────────────────────────────
   let isEditMode = false;
   let originalPreviewHtml = "";
