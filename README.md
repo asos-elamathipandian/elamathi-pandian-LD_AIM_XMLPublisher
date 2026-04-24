@@ -258,4 +258,3 @@ Recommended flow:
 4. Commit only source, templates, and documentation
 5. Push the cleaned repo
 
-Adding outbound message loopup from Azure blob 
