@@ -432,6 +432,58 @@
       border-left: 4px solid #3b82f6;
     }
 
+    /* ── E2Open Outbound Message Search ── */
+    .btn-blob-search {
+      width: 100%;
+      padding: 13px;
+      background: #7c3aed;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.97rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-blob-search:hover { background: #6d28d9; }
+    .btn-blob-search:active { transform: scale(0.99); }
+    .btn-blob-search:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-blob-download {
+      padding: 8px 16px;
+      background: #059669;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background 0.2s;
+    }
+    .btn-blob-download:hover { background: #047857; }
+    .btn-blob-download:disabled { opacity: 0.5; cursor: not-allowed; }
+    .blob-results-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 0.85rem;
+    }
+    .blob-results-table th {
+      text-align: left;
+      padding: 8px 10px;
+      background: #f1f5f9;
+      border-bottom: 2px solid #e2e8f0;
+      font-weight: 600;
+    }
+    .blob-results-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .blob-results-table tr:hover { background: #f8fafc; }
+    .blob-results-table input[type="checkbox"] { cursor: pointer; }
+    .blob-select-all { cursor: pointer; }
+
     /* ── Full SCC Flow ── */
     .btn-full-flow {
       width: 100%;
@@ -676,6 +728,22 @@
       <button class="btn-clear" onclick="clearResults()">Clear</button>
     </div>
     <div class="result-list" id="resultList"></div>
+  </div>
+
+  <!-- ── E2Open Outbound Message Search ── -->
+  <div class="card">
+    <div class="card-title">&#9729; E2Open Outbound Message Search</div>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label for="blobAsn">ASN</label>
+        <input id="blobAsn" type="text" placeholder="e.g. 49870000001418" />
+        <span class="field-hint">Search E2Open outbound messages for XML files containing this ASN.</span>
+      </div>
+    </div>
+    <button class="btn-blob-search" id="btnBlobSearch" onclick="searchBlobs()" style="margin-top:14px;">
+      &#9729;&nbsp; Search Outbound Messages
+    </button>
+    <div id="blobResult" style="margin-top:14px;"></div>
   </div>
 
   <!-- ── Send ADO Status Email ── -->
@@ -1450,6 +1518,98 @@
       clearInterval(progressInterval);
       delete abortControllers.booking;
       resetUIState();
+    }
+  }
+
+  // ── E2Open Outbound Message Search ─────────────────────────────────────────
+
+  async function searchBlobs() {
+    const asn = document.getElementById("blobAsn").value.trim();
+    if (!asn) return alert("Please enter an ASN");
+
+    const btn = document.getElementById("btnBlobSearch");
+    const resultDiv = document.getElementById("blobResult");
+    btn.disabled = true;
+    btn.textContent = "⏳ Searching...";
+    resultDiv.innerHTML = '<div class="lookup-loading"><span>Searching E2Open outbound messages...</span></div>';
+
+    try {
+      const res = await fetch("/api/blob-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asn }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        resultDiv.innerHTML = `<div class="lookup-error"><span>${data.error}</span></div>`;
+        return;
+      }
+
+      if (data.matches.length === 0) {
+        resultDiv.innerHTML = `<div class="lookup-not-found"><span>No outbound messages found containing ASN <b>${asn}</b> (scanned ${data.scanned} files)</span></div>`;
+        return;
+      }
+
+      let html = `<div class="lookup-found" style="display:block;">`;
+      html += `<div style="margin-bottom:8px;"><b>${data.matches.length}</b> outbound message(s) found containing ASN <b>${asn}</b> <span style="color:#64748b;">(scanned ${data.scanned}, skipped ${data.skipped})</span></div>`;
+      html += `<table class="blob-results-table"><thead><tr>`;
+      html += `<th><input type="checkbox" class="blob-select-all" checked onchange="toggleAllBlobs(this)"></th>`;
+      html += `<th>#</th><th>File Name</th><th>Size</th><th>Modified</th><th></th>`;
+      html += `</tr></thead><tbody>`;
+      data.matches.forEach((m, i) => {
+        const fileName = m.name.split("/").pop();
+        const sizeKB = (m.size / 1024).toFixed(1);
+        const modified = new Date(m.lastModified).toLocaleString();
+        const downloadUrl = `/api/blob-file?name=${encodeURIComponent(m.name)}`;
+        html += `<tr>`;
+        html += `<td><input type="checkbox" class="blob-checkbox" value="${m.name}" checked></td>`;
+        html += `<td>${i + 1}</td>`;
+        html += `<td style="font-family:monospace;font-size:0.82rem;"><a href="${downloadUrl}" title="Download this file" style="color:#7c3aed;text-decoration:none;">${fileName}</a></td>`;
+        html += `<td>${sizeKB} KB</td>`;
+        html += `<td>${modified}</td>`;
+        html += `<td><a href="${downloadUrl}" title="Download" style="font-size:1.1rem;">⬇</a></td>`;
+        html += `</tr>`;
+      });
+      html += `</tbody></table>`;
+      html += `<div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap;">`;
+      html += `<button class="btn-blob-download" onclick="downloadAllSelectedToPC()">💾 Download Selected to PC</button>`;
+      html += `<span id="blobDownloadStatus" style="margin-left:4px;font-size:0.88rem;"></span>`;
+      html += `</div>`;
+      html += `</div>`;
+      resultDiv.innerHTML = html;
+    } catch (e) {
+      resultDiv.innerHTML = `<div class="lookup-error"><span>Error: ${e.message}</span></div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "☁ Search Outbound Messages";
+    }
+  }
+
+  function toggleAllBlobs(master) {
+    document.querySelectorAll(".blob-checkbox").forEach(cb => cb.checked = master.checked);
+  }
+
+  function downloadAllSelectedToPC() {
+    const checkboxes = document.querySelectorAll(".blob-checkbox:checked");
+    const blobNames = Array.from(checkboxes).map(cb => cb.value);
+    if (blobNames.length === 0) return alert("No files selected");
+
+    // Trigger browser download for each selected file (small delay between to avoid browser blocking)
+    blobNames.forEach((name, i) => {
+      setTimeout(() => {
+        const a = document.createElement("a");
+        a.href = `/api/blob-file?name=${encodeURIComponent(name)}`;
+        a.download = name.split("/").pop();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, i * 300);
+    });
+
+    const statusEl = document.getElementById("blobDownloadStatus");
+    if (statusEl) {
+      statusEl.textContent = `💾 Downloading ${blobNames.length} file(s) to your PC...`;
+      statusEl.style.color = "#7c3aed";
     }
   }
 

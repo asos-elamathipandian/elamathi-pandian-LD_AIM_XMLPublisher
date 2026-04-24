@@ -22,9 +22,10 @@
     "test": "echo \"No tests configured\""
   },
   "dependencies": {
+    "@azure/storage-blob": "^12.31.0",
     "@modelcontextprotocol/sdk": "^1.11.0",
-    "express": "^4.19.0",
     "dotenv": "^16.4.5",
+    "express": "^4.19.0",
     "ssh2-sftp-client": "^11.0.0",
     "zod": "^3.23.8"
   }
